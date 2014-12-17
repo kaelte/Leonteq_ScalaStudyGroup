@@ -1,4 +1,5 @@
 import scala.annotation.tailrec
+import scala.math.BigInt
 
 object Chapter_02{
 
@@ -28,6 +29,8 @@ object Chapter_02{
   def main(args: Array[String]) {
     val integerArgs:Array[Int] = args.map((s:String) => s.toInt)
 
+    println("****** Chapter_02 ******")
+    println("************************")
     println("*** Testing isSorted ***")
     assert(isSorted(Array(),(i:Int,j:Int) => (i<j):Boolean))
     assert(isSorted(Array(0),(i:Int,j:Int) => (i<j):Boolean))
