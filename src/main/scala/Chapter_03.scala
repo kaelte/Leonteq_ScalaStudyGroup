@@ -137,15 +137,16 @@ object List {
     case (Nil,_) => Nil
     case (Cons(a,ta),Cons(b,tb)) => Cons((a,b),Pair(ta)(tb))
   }
-  def zipWith[A,B,C](as: List[A])(bs: List[B])(f: A => B => C): List[C] = reverse(foldLeft[Tuple2[A,B],List[C]](List.Pair(as)(bs),Nil)( a_and_b => l => Cons((f(a_and_b._1)(a_and_b._2)),l)))
+  def zipWith[A,B,C](as: List[A])(bs: List[B])(f: A => B => C): List[C] =
+    reverse(foldLeft[Tuple2[A,B],List[C]](List.Pair(as)(bs),Nil)( a_and_b => l => Cons((f(a_and_b._1)(a_and_b._2)),l)))
 
   //exercise 3.24: isInitialSegment and hasSubsequence
   @tailrec
   def isInitialSegment[A](ini:List[A], as:List[A]):Boolean = ini match {
     case Nil => true
-    case Cons(i,inis) => as match {
+    case Cons(i,iniTail) => as match {
       case Nil => false
-      case Cons(h,t) if i==h => isInitialSegment(inis, t)
+      case Cons(h,t) if i==h => isInitialSegment(iniTail, t)
       case _ => false
     }
   }
@@ -178,12 +179,37 @@ object Tree {
   def maxVal(as:Tree[Int]):Int = fold[Int,Int](as)(i=>i)(x=>y=>x.max(y))
 
   //exercise 3.27
-  def depth(as:Tree[Int]):Int = fold[Int,Int](as)(i=>0)(x=>y=>1+x.max(y))
+  def depth[A](as:Tree[A]):Int = fold[A,Int](as)(i=>0)(x=>y=>1+x.max(y))
 
   //exercise 3.28
   def map[A,B](as:Tree[A])(h:A=>B):Tree[B] = fold[A,Tree[B]](as)(a=>Leaf(h(a)))(l=>r=>Branch(l,r))
   // stringLength transforms a tree of strings into a tree containing the length of each string
-  def stringLength(strs:Tree[String]):Tree[Int] = map[String,Int](strs)(s=>s.length)
+  def stringLength(strings:Tree[String]):Tree[Int] = map[String,Int](strings)(s=>s.length)
+}
+
+
+sealed trait FinTree[+A]
+case class fTree[A](value: A,ts: List[FinTree[A]]) extends FinTree[A]
+
+object FinTree {
+
+  def branches[A](t:FinTree[A]):List[FinTree[A]] = t match {case fTree(value,ts) => ts}
+  def rootValue[A](t:FinTree[A]):A = t match {case fTree(value,ts) => value}
+
+  //exercise 3.25
+  def size[A](t:FinTree[A]):Int = List.foldLeft[FinTree[A],Int](FinTree.branches(t),1)(x=>i=>i+FinTree.size[A](x))
+
+  //exercise 3.26
+  def maxVal(t:FinTree[Int]):Int = List.foldLeft[FinTree[Int],Int](FinTree.branches(t),FinTree.rootValue(t))(x=>i=>i.max(FinTree.maxVal(x)))
+
+  //exercise 3.27
+  def depth[A](t:FinTree[A]):Int = List.foldLeft[FinTree[A],Int](FinTree.branches(t),0)(x=>i=>i.max(1+FinTree.depth[A](x)))
+
+  //exercise 3.28
+  def map[A,B](t:FinTree[A])(h:A=>B):FinTree[B] =
+    List.foldLeft[FinTree[A],FinTree[B]](FinTree.branches(t),fTree(h(FinTree.rootValue(t)),Nil))(at=>bt=>fTree(FinTree.rootValue(bt),List.reverse(Cons(FinTree.map(at)(h),FinTree.branches(bt)))))
+//  List.foldLeft[FinTree[A],FinTree[B]](FinTree.branches(t),fTree(h(FinTree.rootValue(t)),Nil))(at=>bt=>fTree(h(FinTree.rootValue(at)),Cons(FinTree.map(at)(h),FinTree.branches(bt))))
+  def stringLength(strings:FinTree[String]):FinTree[Int] = map[String,Int](strings)(s=>s.length)
 }
 
 
@@ -304,6 +330,34 @@ object Chapter_03{
     println("depth(Branch(Branch(Leaf(-1),Leaf(0)),Leaf(42)))="+Tree.depth(Branch(Branch(Leaf(-100),Leaf(0)),Leaf(42))))
     println("stringLength(Leaf(a))="+Tree.stringLength(Leaf("a")))
     println("stringLength(Branch(Leaf(a),Leaf(abc)))="+Tree.stringLength(Branch(Leaf("a"),Leaf("abc"))))
-    println("stringLength(Branch(Branch(Leaf(abc),Leaf()),Leaf(abcd)))="+Tree.stringLength(Branch(Branch(Leaf("abc"),Leaf("")),Leaf("abcd"))))
+    println("stringLength(Branch(Branch(Leaf(abc),Leaf()),Leaf(abcd)))="
+    +Tree.stringLength(Branch(Branch(Leaf("abc"),Leaf("")),Leaf("abcd"))))
+    println("****** Finitary branching trees with values at all nodes: FinTree ******")
+    println("size(fTree(42,Nil))="+FinTree.size(fTree(42,Nil)))
+    println("size(fTree(123,List(fTree(-1,Nil),fTree(42,Nil)))))="+FinTree.size(fTree(123,List(fTree(-1,Nil),fTree(42,Nil)))))
+    println("size(fTree(456,List(fTree(123,List(fTree(-1,Nil),fTree(0,Nil))),fTree(42,Nil))))="
+    +FinTree.size(fTree(456,List(fTree(123,List(fTree(-1,Nil),fTree(0,Nil))),fTree(42,Nil)))))
+    println("maxVal(fTree(42,Nil))="+FinTree.maxVal(fTree(42,Nil)))
+    println("maxVal(fTree(123,List(fTree(-1,Nil),fTree(42,Nil)))))="+FinTree.maxVal(fTree(123,List(fTree(-1,Nil),fTree(42,Nil)))))
+    println("maxVal(fTree(456,List(fTree(123,List(fTree(-1,Nil),fTree(0,Nil))),fTree(42,Nil))))="
+    +FinTree.maxVal(fTree(456,List(fTree(123,List(fTree(-1,Nil),fTree(0,Nil))),fTree(42,Nil)))))
+    println("depth(fTree(42,Nil))="+FinTree.depth(fTree(42,Nil)))
+    println("depth(fTree(123,List(fTree(-1,Nil),fTree(42,Nil)))))="+FinTree.depth(fTree(123,List(fTree(-1,Nil),fTree(42,Nil)))))
+    println("depth(fTree(456,List(fTree(123,List(fTree(-1,Nil),fTree(0,Nil))),fTree(42,Nil))))="
+    +FinTree.depth(fTree(456,List(fTree(123,List(fTree(-1,Nil),fTree(0,Nil))),fTree(42,Nil)))))
+    println("depth(fTree(456,List(fTree(123,List(fTree(-1,List(fTree(7,Nil))),fTree(0,Nil))),fTree(42,List(fTree(7,Nil))))))="
+    +FinTree.depth(fTree(456,List(fTree(123,List(fTree(-1,List(fTree(7,Nil))),fTree(0,Nil))),fTree(42,List(fTree(7,Nil)))))))
+    println("****** string length for finTrees ******")
+    println("stringLength(fTree(,Nil))="+FinTree.stringLength(fTree("",Nil)))
+    println("stringLength(fTree(abc,Nil))="+FinTree.stringLength(fTree("abc",Nil)))
+    println("stringLength(fTree(123,Nil))="+FinTree.stringLength(fTree("123",Nil)))
+    println("stringLength(fTree(123,List(fTree(,Nil))))="+FinTree.stringLength(fTree("123",List(fTree("",Nil)))))
+    println("stringLength(fTree(abc,List(fTree(abc,Nil))))="+FinTree.stringLength(fTree("abc",List(fTree("abc",Nil)))))
+    println("stringLength(fTree(123,List(fTree(ab,Nil)))))="+FinTree.stringLength(fTree("123",List(fTree("ab",Nil)))))
+    println("stringLength(fTree(123,List(fTree(a,Nil),fTree(ab,Nil)))))="+FinTree.stringLength(fTree("123",List(fTree("a",Nil),fTree("ab",Nil)))))
+    println("stringLength(fTree(456,List(fTree(123,List(fTree(ab,Nil),fTree(X,Nil))),fTree(abcdef,Nil))))="
+      +FinTree.stringLength(fTree("456",List(fTree("123",List(fTree("ab",Nil),fTree("X",Nil))),fTree("abcdef",Nil)))))
+    println("stringLength(fTree(456,List(fTree(123,List(fTree(ab,List(fTree(7,Nil))),fTree(X,Nil))),fTree(abcdef,List(fTree(7,Nil))))))="
+      +FinTree.stringLength(fTree("456",List(fTree("123",List(fTree("ab",List(fTree("7",Nil))),fTree("X",Nil))),fTree("abcdef",List(fTree("7",Nil)))))))
   }
 }
