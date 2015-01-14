@@ -25,6 +25,8 @@ object Chapter_02{
     go(as.size-1)
   }
 
+
+
   def main(args: Array[String]) {
     val integerArgs:Array[Int] = args.map((s:String) => s.toInt)
 
