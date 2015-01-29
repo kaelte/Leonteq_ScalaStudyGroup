@@ -2,11 +2,11 @@ import scala.annotation.tailrec
 
 object nith_Chapter_02{
 
-  val f = ((i:Int,j:Int)=>i+j)
+  val f = (i:Int,j:Int)=>i+j
 
   def compose[A,B,C](f:B=>C, g:A=>B):A=>C = (a:A) => f(g(a))
 
-  def curry[A,B,C](f: (A,B) => C): A => (B => C) = (a:A) => ((b:B) => f(a,b):C)
+  def curry[A,B,C](f: (A,B) => C): A => (B => C) = (a:A) => (b:B) => f(a,b):C
 
   def unCurry[A,B,C](f: A => (B => C)): (A,B) => C = (a:A,b:B) => f(a)(b):C
 

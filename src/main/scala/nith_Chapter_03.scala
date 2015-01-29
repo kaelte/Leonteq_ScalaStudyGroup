@@ -163,10 +163,10 @@ object List {
   def hasSubsequence[A](sup: List[A], sub: List[A]): Boolean = sub match {
     case Nil => true
     case Cons(a, as) => List.dropWhile(sup)(x => x != a) match {
-        case Nil => false
-        case Cons(a1, Nil) => as == Nil
-        case Cons(a1, Cons(a2, t)) => isInitialSegment(as, Cons(a2, t)) || hasSubsequence(Cons(a2, t), sub)
-      }
+      case Nil => false
+      case Cons(a1, Nil) => as == Nil
+      case Cons(a1, Cons(a2, t)) => isInitialSegment(as, Cons(a2, t)) || hasSubsequence(Cons(a2, t), sub)
+    }
   }
 
 }
