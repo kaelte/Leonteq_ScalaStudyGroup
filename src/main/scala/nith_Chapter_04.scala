@@ -1,5 +1,5 @@
 
-object Chapter04_Option {
+object Chapter04 {
 
   sealed trait Option[+A] {
     // 4.1 Implements Option functions, better use getOrElse and map
@@ -21,6 +21,7 @@ object Chapter04_Option {
   }
 
   // QUESTION: What does "get" mean here ?
+  // get is just a name for the option's element
   case class Some[+A](get: A) extends Option[A]
   case object None extends Option[Nothing]
 
@@ -31,7 +32,11 @@ object Chapter04_Option {
 
   // 4.2 Implement the variance function in terms of flatMap.
   // If the mean of a sequence is m, the variance is the mean of math.pow(x - m, 2) for each element x in the sequence
-  def variance(xs: Seq[Double]): Option[Double] = ???
+  def variance(xs: Seq[Double]): Option[Double] = {
+    val m : Option[Double] = mean(xs)
+    val dist: Double => Option[Double] = a => mean(xs.map(x => math.pow(x-a,2)))
+    m.flatMap(dist)
+  }
 
 
   def Try[A](a: => A): Option[A] =
@@ -42,7 +47,13 @@ object Chapter04_Option {
 
   // 4.3 Write a generic function map2 that combines two Option values using a binary function.
   // If either Option value is None, then the return value is too. Here is its signature:
-  def map2[A, B, C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] = ???
+  def mapFor[A, B, C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] = for {
+    x <- a
+    y <- b
+  } yield f(x, y)
+
+  def map2[A, B, C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] = a.flatMap(x => b.map(y=>f(x,y)))
+
 
 
   // 4.4 Write a function sequence that combines a list of Options into one Option containing
@@ -128,41 +139,63 @@ object Chapter04_Either {
 object nith_Chapter_04 extends App {
 
   val stringLength: String => Int = s => s.length
-  val optionalStringLength: String => Option[Int] = s => Option(s.length)
-  val evenStringLength: String => Boolean = s => s.length%2 == 0
   // QUESTION: I could also use Some as value. What is better ?
   // val optionalStringLength: String => Option[Int] = s => Some(s.length)
+  val optionalStringLength: String => Chapter04.Option[Int] = s => Chapter04.Some(s.length)
+  val evenStringLength: String => Boolean = s => s.length%2 == 0
+  val stringIterator: (String,Int) => String = (s,i) => if (i<1) "" else s + stringIterator(s,i-1)
+// sequences
+  val emptySeq: Seq[Double] = Seq()
+  val singleSeq: Seq[Double] = Seq(42)
+  val fiveSeq: Seq[Double] = Seq(0,1,2,3,4)
 
   println("************************")
   println("****** Chapter_04 ******")
   println("************************")
 
-  print("** Exercise 4.1 **")
+  println("** Exercise 4.1 **")
   // map
   println("None.map(stringLength) = " + None.map(stringLength))
-  println("Option(\"\").map(stringLength) = " + Option("").map(stringLength))
-  println("Option(\"abc\").map(stringLength) = " + Option("abc").map(stringLength))
+  println("Some(\"\").map(stringLength) = " + Option[String]("").map(stringLength))
+  println("Some(\"abc\").map(stringLength) = " + Option("abc").map(stringLength))
   // getOrElse
-  println("None.getOrElse(\"\") = " + None.getOrElse(""))
+  println("None.getOrElse(\"\") = " + Chapter04.None.getOrElse(""))
   println("None.getOrElse(None) = " + None.getOrElse(None))
-  println("Option(\"\").getOrElse(\"\") = " + Option("").getOrElse(""))
-  println("Option(\"abc\").getOrElse(\"\") = " + Option("abc").getOrElse(""))
-  println("Option(Option(\"abc\")).getOrElse(\"\") = " + Option(Option("abc")).getOrElse(""))
+  println("Some(\"\").getOrElse(\"\") = " + Chapter04.Some("").getOrElse(""))
+  println("Some(\"abc\").getOrElse(\"\") = " + Chapter04.Some("abc").getOrElse(""))
+  println("Some(Some(\"abc\")).getOrElse(\"\") = " + Chapter04.Some(Chapter04.Some("abc")).getOrElse(""))
   // map
-  println("None.flatMap(optionalStringLength) = " + None.flatMap(optionalStringLength))
-  println("Option(\"\").flatMap(optionalStringLength) = " + Option("").flatMap(optionalStringLength))
-  println("Option(\"abc\").flatMap(optionalStringLength) = " + Option("abc").flatMap(optionalStringLength))
+  println("None.flatMap(optionalStringLength) = " + Chapter04.None.flatMap[Int](optionalStringLength))
+  println("Some(\"\").flatMap(optionalStringLength) = " + Chapter04.Some("").flatMap(optionalStringLength))
+  println("Some(\"abc\").flatMap(optionalStringLength) = " + Chapter04.Some("abc").flatMap(optionalStringLength))
   // orElse
-  println("None.orElse(None) = " + None.orElse(None))
-  println("None.orElse(Option(1)) = " + None.orElse(Option(1)))
-  println("None.orElse(Option(2.4)) = " + None.orElse(Option(2.4)))
-  println("Option(42).orElse(Option(2.4)) = " + Option(42).orElse(Option(2.4)))
-  println("Option(Option(42)).orElse(Option(2.4)) = " + Option(Option(42)).orElse(Option(2.4)))
+  println("None.orElse(None) = " + Chapter04.None.orElse(Chapter04.None))
+  println("None.orElse(Some(1)) = " + Chapter04.None.orElse(Chapter04.Some(1.0)))
+  println("None.orElse(Some(2.4)) = " + Chapter04.None.orElse(Chapter04.Some(2.4)))
+  println("Some(42).orElse(Some(2.4)) = " + Chapter04.Some(42).orElse(Chapter04.Some(2.4)))
+  println("Some(Some(42)).orElse(Some(2.4)) = " + Chapter04.Some(Chapter04.Some(42)).orElse(Chapter04.Some(2.4)))
   // filter
   println("None.filter(evenStringLength) = " + None.filter(evenStringLength))
-  println("Option(\"\").filter(evenStringLength) = " + Option("").filter(evenStringLength))
-  println("Option(\"abc\").filter(evenStringLength) = " + Option("abc").filter(evenStringLength))
-  println("Option(\"abcd\").filter(evenStringLength) = " + Option("abcd").filter(evenStringLength))
+  println("Some(\"\").filter(evenStringLength) = " + Chapter04.Some("").filter(evenStringLength))
+  println("Some(\"abc\").filter(evenStringLength) = " + Chapter04.Some("abc").filter(evenStringLength))
+  println("Some(\"abcd\").filter(evenStringLength) = " + Chapter04.Some("abcd").filter(evenStringLength))
+
+  println("** Exercise 4.2 **")
+  println("variance(emptySeq) = " + Chapter04.variance(emptySeq))
+  println("mean(singleSeq) = " + Chapter04.mean(singleSeq))
+  println("variance(singleSeq) = " + Chapter04.variance(singleSeq))
+  println("mean(fiveSeq) = " + Chapter04.mean(fiveSeq))
+  println("variance(fiveSeq) = " + Chapter04.variance(fiveSeq))
+
+  println("** Exercise 4.3 **")
+  println("stringIterator(\"abc\")(0) = " + stringIterator("abc",0))
+  println("stringIterator(\"abc\")(3) = " + stringIterator("abc",3))
+  println("map2(None)(Some(23))(stringIterator) = " + Chapter04.map2[String,Int,String](Chapter04.None,Chapter04.Some(23))(stringIterator))
+  println("map2(Some(\"a\"))(None)(stringIterator) = " + Chapter04.map2[String,Int,String](Chapter04.Some("a"),Chapter04.None)(stringIterator))
+  println("map2(Some(\"a\"))(Some(23))(stringIterator) = " + Chapter04.map2[String,Int,String](Chapter04.Some("a"),Chapter04.Some(23))(stringIterator))
+  println("map2(Some(\"a\"))(Some(0))(stringIterator) = " + Chapter04.map2[String,Int,String](Chapter04.Some("a"),Chapter04.Some(0))(stringIterator))
+//  println("Some(\"\").map2(stringLength) = " + Chapter04_Option.Some("").map2(stringLength))
+//  println("Some(\"abc\").map2(stringLength) = " + Chapter04_Option.Some("abc").map2(stringLength))
 
 }
 
