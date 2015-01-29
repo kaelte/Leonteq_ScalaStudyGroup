@@ -1,6 +1,6 @@
 import scala.annotation.tailrec
 
-object Chapter_02{
+object nith_Chapter_02{
 
   val f = ((i:Int,j:Int)=>i+j)
 
