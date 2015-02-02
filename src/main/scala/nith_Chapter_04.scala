@@ -32,11 +32,7 @@ object Chapter04 {
 
   // 4.2 Implement the variance function in terms of flatMap.
   // If the mean of a sequence is m, the variance is the mean of math.pow(x - m, 2) for each element x in the sequence
-  def variance(xs: Seq[Double]): Option[Double] = {
-    val m : Option[Double] = mean(xs)
-    val dist: Double => Option[Double] = a => mean(xs.map(x => math.pow(x-a,2)))
-    m.flatMap(dist)
-  }
+  def variance(xs: Seq[Double]): Option[Double] = mean(xs).flatMap(a => mean(xs.map(x => math.pow(x-a,2))))
 
 
   def Try[A](a: => A): Option[A] =
@@ -60,7 +56,13 @@ object Chapter04 {
   // a list of all the Some values in the original list. If the original list contains None even
   // once, the result of the function should be None; otherwise the result should be Some with a
   // list of all the values. Here is its signature:
-  def sequence[A](a: List[Option[A]]): Option[List[A]] = ???
+  def sequence[A](a: List[Option[A]]): Option[List[A]] = a match {
+    case Nil => None
+    case Cons(None, t) => None
+    case Cons(Some(h), Nil) => Some(Cons(h,Nil))
+    case Cons(Some(h), t) => map2[A,List[A],List[A]](Some(h),sequence(t))( (h:A,t:List[A])=>Cons(h,t))
+  }
+
 
 
   /*
@@ -155,12 +157,12 @@ object nith_Chapter_04 extends App {
 
   println("** Exercise 4.1 **")
   // map
-  println("None.map(stringLength) = " + None.map(stringLength))
-  println("Some(\"\").map(stringLength) = " + Option[String]("").map(stringLength))
-  println("Some(\"abc\").map(stringLength) = " + Option("abc").map(stringLength))
+  println("None.map(stringLength) = " + Chapter04.None.map(stringLength))
+  println("Some(\"\").map(stringLength) = " + Chapter04.Some("").map(stringLength))
+  println("Some(\"abc\").map(stringLength) = " + Chapter04.Some("abc").map(stringLength))
   // getOrElse
   println("None.getOrElse(\"\") = " + Chapter04.None.getOrElse(""))
-  println("None.getOrElse(None) = " + None.getOrElse(None))
+  println("None.getOrElse(None) = " + Chapter04.None.getOrElse(None))
   println("Some(\"\").getOrElse(\"\") = " + Chapter04.Some("").getOrElse(""))
   println("Some(\"abc\").getOrElse(\"\") = " + Chapter04.Some("abc").getOrElse(""))
   println("Some(Some(\"abc\")).getOrElse(\"\") = " + Chapter04.Some(Chapter04.Some("abc")).getOrElse(""))
@@ -175,12 +177,13 @@ object nith_Chapter_04 extends App {
   println("Some(42).orElse(Some(2.4)) = " + Chapter04.Some(42).orElse(Chapter04.Some(2.4)))
   println("Some(Some(42)).orElse(Some(2.4)) = " + Chapter04.Some(Chapter04.Some(42)).orElse(Chapter04.Some(2.4)))
   // filter
-  println("None.filter(evenStringLength) = " + None.filter(evenStringLength))
+  println("None.filter(evenStringLength) = " + Chapter04.None.filter(evenStringLength))
   println("Some(\"\").filter(evenStringLength) = " + Chapter04.Some("").filter(evenStringLength))
   println("Some(\"abc\").filter(evenStringLength) = " + Chapter04.Some("abc").filter(evenStringLength))
   println("Some(\"abcd\").filter(evenStringLength) = " + Chapter04.Some("abcd").filter(evenStringLength))
 
   println("** Exercise 4.2 **")
+  println("mean(emptySeq) = " + Chapter04.mean(emptySeq))
   println("variance(emptySeq) = " + Chapter04.variance(emptySeq))
   println("mean(singleSeq) = " + Chapter04.mean(singleSeq))
   println("variance(singleSeq) = " + Chapter04.variance(singleSeq))
@@ -194,8 +197,12 @@ object nith_Chapter_04 extends App {
   println("map2(Some(\"a\"))(None)(stringIterator) = " + Chapter04.map2[String,Int,String](Chapter04.Some("a"),Chapter04.None)(stringIterator))
   println("map2(Some(\"a\"))(Some(23))(stringIterator) = " + Chapter04.map2[String,Int,String](Chapter04.Some("a"),Chapter04.Some(23))(stringIterator))
   println("map2(Some(\"a\"))(Some(0))(stringIterator) = " + Chapter04.map2[String,Int,String](Chapter04.Some("a"),Chapter04.Some(0))(stringIterator))
-//  println("Some(\"\").map2(stringLength) = " + Chapter04_Option.Some("").map2(stringLength))
-//  println("Some(\"abc\").map2(stringLength) = " + Chapter04_Option.Some("abc").map2(stringLength))
+
+  println("** Exercise 4.4 **")
+  println("sequence(List(None)) = " + Chapter04.sequence(List(Chapter04.None)))
+  println("sequence(List(Some(0))) = " + Chapter04.sequence(List(Chapter04.Some(0))))
+  println("sequence(List(Some(0),Some(1))) = " + Chapter04.sequence(List(Chapter04.Some(0),Chapter04.Some(1))))
+  println("sequence(List(Some(0),Some(1),Some(2),Some(3),Some(4))) = " + Chapter04.sequence(List(Chapter04.Some(0),Chapter04.Some(1),Chapter04.Some(2),Chapter04.Some(3),Chapter04.Some(4))))
+  println("sequence(List(Some(0),Some(1),None,Some(2),Some(3),Some(4))) = " + Chapter04.sequence(List(Chapter04.Some(0),Chapter04.Some(1),Chapter04.None,Chapter04.Some(2),Chapter04.Some(3),Chapter04.Some(4))))
 
 }
-
