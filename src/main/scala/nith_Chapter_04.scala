@@ -121,10 +121,18 @@ object Ch04_Either {
 
 
   // 4.7 Implement sequence and traverse for Either. These should return the first error that’s encountered, if there is one.
-  def sequence[E, A](es: List[Either[E, A]]): Either[E, List[A]] = ???
-
-  def traverse[E, A, B](as: List[A])(f: A => Either[E, B]): Either[E, List[B]] = ???
-
+  def sequence[E, A](es: List[Either[E, A]]): Either[E, List[A]] = es match {
+    case Nil => Right(Nil)
+    case Cons(Left(e), t) => Left(e)
+    case Cons(h, t) => h.map2[E,List[A],List[A]](sequence(t))((head, tl) => Cons(head, tl))
+  }
+  def traverse[E, A, B](as: List[A])(f: A => Either[E, B]): Either[E, List[B]] = as match {
+    case Nil => Right(Nil)
+    case Cons(h, t) => f(h) match {
+      case Left(e) => Left(e)
+      case Right(b) => Right(b).map2[E, List[B], List[B]](traverse(t)(f))((head, tl) => Cons(head, tl))
+    }
+  }
 
   case class Person(name: Name, age: Age)
 
@@ -160,13 +168,12 @@ object nith_Chapter_04 extends App {
   val fiveSeq: Seq[Double] = Seq(0, 1, 2, 3, 4)
   // Option related constants
   val optionalStringLength: String => Ch04_Option.Option[Int] = s => Ch04_Option.Some(s.length)
-  val optionalToInt: String => Ch04_Option.Option[Int] = x => Ch04_Option.Try {
-    x.toInt
-  }
+  val optionalToInt: String => Ch04_Option.Option[Int] = x => Ch04_Option.Try {x.toInt}
   val stringIterator: (String, Int) => String = (s, i) => if (i < 1) "" else s + stringIterator(s, i - 1)
   // Either related constants
   val except: String = "Let this exception been thrown at you!"
-  val eithernalStringLength: String => Ch04_Either.Right[Int] = s => Ch04_Either.Right(s.length)
+  val eithernalStringLength: String => Ch04_Either.Either[String,Int] = s => Ch04_Either.Right(s.length)
+  val eithernalToInt: String => Ch04_Either.Either[String,Int] = x => try Ch04_Either.Right(x.toInt) catch { case e: Exception => Ch04_Either.Left(except) }
 
 
   println("************************")
@@ -255,5 +262,24 @@ object nith_Chapter_04 extends App {
   println("Right(\"a\").map2(Right(23))(stringIterator) = " + Ch04_Either.Right("a").map2(Ch04_Either.Right(23))(stringIterator))
   println("Right(\"a\").map2(Right(0))(stringIterator) = " + Ch04_Either.Right("a").map2(Ch04_Either.Right(0))(stringIterator))
   println("Right(\"a\").map2(Right(-1))(stringIterator) = " + Ch04_Either.Right("a").map2(Ch04_Either.Right(-1))(stringIterator))
+
+  println("** Exercise 4.7 **")
+  //sequence
+  println("sequence(Nil) = " + Ch04_Either.sequence(Nil))
+  println("sequence(List(Left(except))) = " + Ch04_Either.sequence(List(Ch04_Either.Left(except))))
+  println("sequence(List(Right(0))) = " + Ch04_Either.sequence(List(Ch04_Either.Right(0))))
+  println("sequence(List(Right(0),Right(1))) = " + Ch04_Either.sequence(List(Ch04_Either.Right(0), Ch04_Either.Right(1))))
+  println("sequence(List(Right(0),Right(1),Right(2),Right(3),Right(4))) = "
+    + Ch04_Either.sequence(List(Ch04_Either.Right(0), Ch04_Either.Right(1), Ch04_Either.Right(2), Ch04_Either.Right(3), Ch04_Either.Right(4))))
+  println("sequence(List(Right(0),Right(1),Left(except),Right(2),Right(3),Right(4))) = "
+    + Ch04_Either.sequence(List(Ch04_Either.Right(0), Ch04_Either.Right(1), Ch04_Either.Left(except), Ch04_Either.Right(2), Ch04_Either.Right(3), Ch04_Either.Right(4))))
+  //traverse
+  println("traverse(Nil)(eithernalStringLength) = " + Ch04_Either.traverse(Nil)(eithernalStringLength))
+  println("traverse(List(\"\",\"a\",\"b\",\"abc\",\"abcd\",\"abcde\"))(eithernalStringLength) = "
+    + Ch04_Either.traverse(List("", "a", "b", "abc", "abcd", "abcde"))(eithernalStringLength))
+  println("traverse(Nil)(eithernalToInt) = " + Ch04_Either.traverse(Nil)(eithernalToInt))
+  println("traverse(List(\"0\",\"1\",\"2\",\"3\",\"4\"))(eithernalToInt) = " + Ch04_Either.traverse(List("0", "1", "2", "3", "4"))(eithernalToInt))
+  println("traverse(List(\"0\",\"1\",\"\",\"2\",\"3\",\"4\"))(eithernalToInt) = "
+    + Ch04_Either.traverse[String,String,Int](List("0", "1", "", "2", "3", "4"))(eithernalToInt))
 
 }
