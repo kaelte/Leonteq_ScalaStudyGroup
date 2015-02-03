@@ -57,10 +57,9 @@ object Chapter04 {
   // once, the result of the function should be None; otherwise the result should be Some with a
   // list of all the values. Here is its signature:
   def sequence[A](a: List[Option[A]]): Option[List[A]] = a match {
-    case Nil => None
+    case Nil => Some(Nil)
     case Cons(None, t) => None
-    case Cons(Some(h), Nil) => Some(Cons(h,Nil))
-    case Cons(Some(h), t) => map2[A,List[A],List[A]](Some(h),sequence(t))( (h:A,t:List[A])=>Cons(h,t))
+    case Cons(Some(h), t) => map2[A,List[A],List[A]](Some(h),sequence(t))((h,t)=>Cons(h,t))
   }
 
 
@@ -73,7 +72,13 @@ object Chapter04 {
 
   // 4.5 Implement traverse. It’s straightforward to do using map and sequence, but try for a more efficient
   // implementation that only looks at the list once. In fact, implement sequence in terms of traverse.
-  def traverse[A, B](a: List[A])(f: A => Option[B]): Option[List[B]] = ???
+  def traverse[A, B](a: List[A])(f: A => Option[B]): Option[List[B]] =  a match {
+    case Nil => Some(Nil)
+    case Cons(h, t) => f(h) match {
+      case None => None
+      case Some(b) => map2[B,List[B],List[B]](Some(b),traverse(t)(f))((h,t)=>Cons(h,t))
+    }
+  }
 
 }
 
@@ -144,6 +149,7 @@ object nith_Chapter_04 extends App {
   // QUESTION: I could also use Some as value. What is better ?
   // val optionalStringLength: String => Option[Int] = s => Some(s.length)
   val optionalStringLength: String => Chapter04.Option[Int] = s => Chapter04.Some(s.length)
+  val optionalToInt: String => Chapter04.Option[Int] = x => Chapter04.Try{x.toInt}
   val evenStringLength: String => Boolean = s => s.length%2 == 0
   val stringIterator: (String,Int) => String = (s,i) => if (i<1) "" else s + stringIterator(s,i-1)
 // sequences
@@ -199,10 +205,18 @@ object nith_Chapter_04 extends App {
   println("map2(Some(\"a\"))(Some(0))(stringIterator) = " + Chapter04.map2[String,Int,String](Chapter04.Some("a"),Chapter04.Some(0))(stringIterator))
 
   println("** Exercise 4.4 **")
+  println("sequence(Nil) = " + Chapter04.sequence(Nil))
   println("sequence(List(None)) = " + Chapter04.sequence(List(Chapter04.None)))
   println("sequence(List(Some(0))) = " + Chapter04.sequence(List(Chapter04.Some(0))))
   println("sequence(List(Some(0),Some(1))) = " + Chapter04.sequence(List(Chapter04.Some(0),Chapter04.Some(1))))
   println("sequence(List(Some(0),Some(1),Some(2),Some(3),Some(4))) = " + Chapter04.sequence(List(Chapter04.Some(0),Chapter04.Some(1),Chapter04.Some(2),Chapter04.Some(3),Chapter04.Some(4))))
   println("sequence(List(Some(0),Some(1),None,Some(2),Some(3),Some(4))) = " + Chapter04.sequence(List(Chapter04.Some(0),Chapter04.Some(1),Chapter04.None,Chapter04.Some(2),Chapter04.Some(3),Chapter04.Some(4))))
+
+  println("** Exercise 4.5 **")
+  println("traverse(Nil)(optionalStringLength) = " + Chapter04.traverse(Nil)(optionalStringLength))
+  println("traverse(List(\"\",\"a\",\"b\",\"abc\",\"abcd\",\"abcde\"))(optionalStringLength) = " + Chapter04.traverse(List("","a","b","abc","abcd","abcde"))(optionalStringLength))
+  println("traverse(Nil)(optionalToInt) = " + Chapter04.traverse(Nil)(optionalToInt))
+  println("traverse(List(\"0\",\"1\",\"2\",\"3\",\"4\"))(optionalToInt) = " + Chapter04.traverse(List("0","1","2","3","4"))(optionalToInt))
+  println("traverse(List(\"0\",\"1\",\"\",\"2\",\"3\",\"4\"))(optionalToInt) = " + Chapter04.traverse(List("0","1","","2","3","4"))(optionalToInt))
 
 }
