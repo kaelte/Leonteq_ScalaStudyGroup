@@ -23,7 +23,6 @@ object Ch04_Option {
   // QUESTION: What does "get" mean here ?
   // get is just a name for the option's element
   case class Some[+A](get: A) extends Option[A]
-
   case object None extends Option[Nothing]
 
   def mean(xs: Seq[Double]): Option[Double] =
@@ -124,8 +123,9 @@ object Ch04_Either {
   def sequence[E, A](es: List[Either[E, A]]): Either[E, List[A]] = es match {
     case Nil => Right(Nil)
     case Cons(Left(e), t) => Left(e)
-    case Cons(h, t) => h.map2[E,List[A],List[A]](sequence(t))((head, tl) => Cons(head, tl))
+    case Cons(h, t) => h.map2[E, List[A], List[A]](sequence(t))((head, tl) => Cons(head, tl))
   }
+
   def traverse[E, A, B](as: List[A])(f: A => Either[E, B]): Either[E, List[B]] = as match {
     case Nil => Right(Nil)
     case Cons(h, t) => f(h) match {
@@ -134,17 +134,19 @@ object Ch04_Either {
     }
   }
 
+  // QUESTION
+  // Why do we define a special type Person ?
+  // We could just use Tuple2[String,Int]
   case class Person(name: Name, age: Age)
-
   sealed class Name(val value: String)
-
   sealed class Age(val value: Int)
 
   def mkName(name: String): Either[String, Name] =
     if (name == "" || name == null) Left("Name is empty.") else Right(new Name(name))
 
+  // for better logging please print out the input value
   def mkAge(age: Int): Either[String, Age] =
-    if (age < 0) Left("Age is out of range.") else Right(new Age(age))
+    if (age < 0) Left("Age is out of range. Desired age = "+age) else Right(new Age(age))
 
   def mkPerson(name: String, age: Int): Either[String, Person] =
     mkName(name).map2(mkAge(age))(Person(_, _))
@@ -158,28 +160,152 @@ object Ch04_Either {
 
 }
 
+object Ch04_EitherList {
+
+  sealed trait Either[+E, +A] {
+    // 4.6 Implement versions of map, flatMap, orElse, and map2 on Either that operate on the Right value.
+    def map[B](f: A => B): Either[E, B] = this match {
+      case Left(es) => Left(es)
+      case Right(a) => Right(f(a))
+    }
+
+    def flatMap[EE >: E, B](f: A => Either[EE, B]): Either[EE, B] = this match {
+      case Left(es) => Left(es)
+      case Right(a) => f(a)
+    }
+
+    def orElse[EE >: E, B >: A](b: => Either[EE, B]): Either[EE, B] = this.flatMap(a => Right(a)) match {
+      case Left(es) => b
+      case Right(bb) => Right(bb)
+    }
+
+    def map2[EE >: E, B, C](b: Either[EE, B])(f: (A, B) => C): Either[EE, C] = this match {
+      case Left(es) => b match {
+        case Left(bExceptions) => Left(List.append(es,bExceptions))
+        case Right(bValue) => Left(es)
+      }
+      case Right(a) => b.map(y => f(a, y))
+    }
+  }
+
+  case class Left[+E](values: List[Tuple2[String, E]]) extends Either[E, Nothing]
+  case class Right[+A](value: A) extends Either[Nothing, A]
+
+  def mean(xs: IndexedSeq[Double]): Either[String, Double] = if (xs.isEmpty)
+    Left[String](Cons(("mean", "mean of empty list!"), Nil))
+  else
+    Right(xs.sum / xs.length)
+
+  def safeDiv(x: Int, y: Int): Either[Exception, Int] =
+    try Right(x / y)
+    catch {
+      case e: Exception => Left(Cons(("safeDiv", e), Nil))
+    }
+
+
+  // 4.7 Implement sequence and traverse for Either. These should return the first error that’s encountered, if there is one.
+  def sequence[E, A](es: List[Either[E, A]]): Either[E, List[A]] = {
+    def go(es: List[Either[E, A]])(exceptions: List[Tuple2[String, E]]): Either[E, List[A]] = exceptions match {
+      // no exceptions so far
+      case Nil => es match {
+        case Nil => Right(Nil)
+        case Cons(Left(excepts), t) => go(t)(excepts)
+        case Cons(h, t) => h.map2[E, List[A], List[A]](go(t)(Nil))((head, tl) => Cons(head, tl))
+      }
+      // List of exceptions full of errors
+      case Cons(h, t) =>
+        es match {
+          case Nil => Left(exceptions)
+          case Cons(Left(excepts), t) => go(t)(List.append(exceptions,excepts))
+          case Cons(_, t) => go(t)(exceptions)
+        }
+    }
+    go(es)(Nil)
+  }
+
+  def traverse[E, A, B](as: List[A])(f: A => Either[E, B]): Either[E, List[B]] = {
+    def go(as: List[A])(f: A => Either[E, B])(exceptions: List[Tuple2[String, E]]): Either[E, List[B]] = exceptions match {
+      // no exceptions so far
+      case Nil => as match {
+        case Nil => Right(Nil)
+        case Cons(a, aTail) => f(a) match {
+          case Left(es) => go(aTail)(f)(es)
+          case Right(b) => Right(b).map2[E, List[B], List[B]](go(aTail)(f)(Nil))((head, tl) => Cons(head, tl))
+        }
+      }
+      // List of exceptions full of errors
+      case Cons(h, t) =>
+        as match {
+          case Nil => Left(exceptions)
+          case Cons(a, aTail) => f(a) match {
+            case Left(es) => go(aTail)(f)(List.append(exceptions,es))
+            case Right(b) => go(aTail)(f)(exceptions)
+          }
+        }
+    }
+    go(as)(f)(Nil)
+  }
+
+
+  // QUESTION
+  // Why do we define a special type Person ?
+  // We could just use Tuple2[String,Int]
+  case class Person(name: Name, age: Age)
+  sealed class Name(val value: String)
+  sealed class Age(val value: Int)
+
+  def mkName(name: String): Either[String, Name] =
+    if (name == "" || name == null) Left(Cons(("mkName","Name is empty."),Nil)) else Right(new Name(name))
+
+  def mkAge(age: Int): Either[String, Age] =
+    if (age < 0) Left(Cons(("mkAge","Age is out of range. Desired age = "+age),Nil)) else Right(new Age(age))
+
+  def mkPerson(name: String, age: Int): Either[String, Person] = mkName(name).map2(mkAge(age))(Person(_, _))
+
+
+  // 4.8 In this implementation, map2 is only able to report one error, even if both the name and the age are invalid.
+  // What would you need to change in order to report both errors? Would you change map2 or the signature of mkPerson?
+  // Or could you create a new data type that captures this requirement better than Either does, with some additional
+  // structure? How would orElse, traverse, and sequence behave differently for that data type?
+
+
+}
+
 object nith_Chapter_04 extends App {
 
   val stringLength: String => Int = s => s.length
-  val evenStringLength: String => Boolean = s => s.length % 2 == 0
+  val evenStringLength: String => Boolean = _.length % 2 == 0
   // sequences
   val emptySeq: Seq[Double] = Seq()
   val singleSeq: Seq[Double] = Seq(42)
   val fiveSeq: Seq[Double] = Seq(0, 1, 2, 3, 4)
   // Option related constants
   val optionalStringLength: String => Ch04_Option.Option[Int] = s => Ch04_Option.Some(s.length)
-  val optionalToInt: String => Ch04_Option.Option[Int] = x => Ch04_Option.Try {x.toInt}
+  val optionalToInt: String => Ch04_Option.Option[Int] = x => Ch04_Option.Try {
+    x.toInt
+  }
   val stringIterator: (String, Int) => String = (s, i) => if (i < 1) "" else s + stringIterator(s, i - 1)
   // Either related constants
   val except: String = "Let this exception been thrown at you!"
-  val eithernalStringLength: String => Ch04_Either.Either[String,Int] = s => Ch04_Either.Right(s.length)
-  val eithernalToInt: String => Ch04_Either.Either[String,Int] = x => try Ch04_Either.Right(x.toInt) catch { case e: Exception => Ch04_Either.Left(except) }
+  val eithernalStringLength: String => Ch04_Either.Either[String, Int] = s => Ch04_Either.Right(s.length)
+  val eithernalToInt: String => Ch04_Either.Either[String, Int] = x => try Ch04_Either.Right(x.toInt) catch {
+    case e: Exception => Ch04_Either.Left("Could not convert to Integer string "+x)
+  }
+
+  // EitherList related constants
+  val exceptionTriple: Int => List[Tuple2[String,String]] = i => List(("App "+i,"Exception "+i),("App "+(i+1),"Exception "+(i+1)),("App "+(i+2),"Exception "+(i+2)))
+  val eithernalListStringLength: String => Ch04_EitherList.Either[String, Int] = s => Ch04_EitherList.Right(s.length)
+  val eithernalListToInt: String => Ch04_EitherList.Either[String, Int] = x => try Ch04_EitherList.Right(x.toInt) catch {
+    case e: Exception => Ch04_EitherList.Left(List(("eithernalListToInt","Could not convert to Integer: \""+x+"\"")))
+  }
 
 
-  println("************************")
+
   println("****** Chapter_04 ******")
-  println("************************")
 
+  println("************************")
+  println("******   Option   ******")
+  println("************************")
   println("** Exercise 4.1 **")
   // map
   println("None.map(stringLength) = " + Ch04_Option.None.map(stringLength))
@@ -239,6 +365,9 @@ object nith_Chapter_04 extends App {
   println("traverse(List(\"0\",\"1\",\"2\",\"3\",\"4\"))(optionalToInt) = " + Ch04_Option.traverse(List("0", "1", "2", "3", "4"))(optionalToInt))
   println("traverse(List(\"0\",\"1\",\"\",\"2\",\"3\",\"4\"))(optionalToInt) = " + Ch04_Option.traverse(List("0", "1", "", "2", "3", "4"))(optionalToInt))
 
+  println("************************")
+  println("******   Either   ******")
+  println("************************")
   println("** Exercise 4.6 **")
   // map
   println("Left(except).map(stringLength) = " + Ch04_Either.Left(except).map(stringLength))
@@ -258,6 +387,7 @@ object nith_Chapter_04 extends App {
   println("stringIterator(\"abc\")(0) = " + stringIterator("abc", 0))
   println("stringIterator(\"abc\")(3) = " + stringIterator("abc", 3))
   println("Left(except).map2(Right(23))(stringIterator) = " + Ch04_Either.Left(except).map2(Ch04_Either.Right(23))(stringIterator))
+  println("Left(except).map2(Left(except))(stringIterator) = " + Ch04_Either.Left(except).map2(Ch04_Either.Left(except))(stringIterator))
   println("Right(\"a\").map2(Left(except))(stringIterator) = " + Ch04_Either.Right("a").map2(Ch04_Either.Left(except))(stringIterator))
   println("Right(\"a\").map2(Right(23))(stringIterator) = " + Ch04_Either.Right("a").map2(Ch04_Either.Right(23))(stringIterator))
   println("Right(\"a\").map2(Right(0))(stringIterator) = " + Ch04_Either.Right("a").map2(Ch04_Either.Right(0))(stringIterator))
@@ -280,6 +410,67 @@ object nith_Chapter_04 extends App {
   println("traverse(Nil)(eithernalToInt) = " + Ch04_Either.traverse(Nil)(eithernalToInt))
   println("traverse(List(\"0\",\"1\",\"2\",\"3\",\"4\"))(eithernalToInt) = " + Ch04_Either.traverse(List("0", "1", "2", "3", "4"))(eithernalToInt))
   println("traverse(List(\"0\",\"1\",\"\",\"2\",\"3\",\"4\"))(eithernalToInt) = "
-    + Ch04_Either.traverse[String,String,Int](List("0", "1", "", "2", "3", "4"))(eithernalToInt))
+    + Ch04_Either.traverse[String, String, Int](List("0", "1", "", "2", "3", "4"))(eithernalToInt))
+
+  println("Ch04_Either.mkPerson(\"Hans\", 42) = " + Ch04_Either.mkPerson("Hans", 42))
+  println("Ch04_Either.mkPerson(\"\", 42) = " + Ch04_Either.mkPerson("", 42))
+  println("Ch04_Either.mkPerson(\"Peter\", -1) = " + Ch04_Either.mkPerson("Peter", -1))
+  println("Ch04_Either.mkPerson(\"\", -1) = " + Ch04_Either.mkPerson("", -1))
+
+  println("****************************")
+  println("******   EitherList   ******")
+  println("****************************")
+  println("** Exercise 4.6 **")
+  // map
+  println("Left(exceptionTriple(0)).map(stringLength) = " + Ch04_EitherList.Left(exceptionTriple(0)).map(stringLength))
+  println("Right(\"\").map(stringLength) = " + Ch04_EitherList.Right("").map(stringLength))
+  println("Right(\"abc\").map(stringLength) = " + Ch04_EitherList.Right("abc").map(stringLength))
+  // flatMap
+  println("Left(exceptionTriple(0)).flatMap(eithernalListStringLength) = " + Ch04_EitherList.Left(exceptionTriple(0)).flatMap(eithernalListStringLength))
+  println("Right(\"\").flatMap(eithernalListStringLength) = " + Ch04_EitherList.Right("").flatMap(eithernalListStringLength))
+  println("Right(\"abc\").flatMap(eithernalListStringLength) = " + Ch04_EitherList.Right("abc").flatMap(eithernalListStringLength))
+  // orElse
+  println("Left(exceptionTriple(0)).orElse(Left(exceptionTriple(20))) = " + Ch04_EitherList.Left(exceptionTriple(0)).orElse(Ch04_EitherList.Left(exceptionTriple(20))))
+  println("Left(exceptionTriple(0)).orElse(Right(1)) = " + Ch04_EitherList.Left(exceptionTriple(0)).orElse(Ch04_EitherList.Right(1.0)))
+  println("Left(exceptionTriple(0)).orElse(Right(2.4)) = " + Ch04_EitherList.Left(exceptionTriple(0)).orElse(Ch04_EitherList.Right(2.4)))
+  println("Right(42).orElse(Right(2.4)) = " + Ch04_EitherList.Right(42).orElse(Ch04_EitherList.Right(2.4)))
+  println("Right(Right(42)).orElse(Right(2.4)) = " + Ch04_EitherList.Right(Ch04_EitherList.Right(42)).orElse(Ch04_EitherList.Right(2.4)))
+  // map2
+  println("stringIterator(\"abc\")(0) = " + stringIterator("abc", 0))
+  println("stringIterator(\"abc\")(3) = " + stringIterator("abc", 3))
+  println("Left(exceptionTriple(0)).map2(Right(23))(stringIterator) = " + Ch04_EitherList.Left(exceptionTriple(0)).map2(Ch04_EitherList.Right(23))(stringIterator))
+  println("Left(exceptionTriple(0)).map2(Left(exceptionTriple(3)))(stringIterator) = " + Ch04_EitherList.Left(exceptionTriple(0)).map2(Ch04_EitherList.Left(exceptionTriple(3)))(stringIterator))
+  println("Right(\"a\").map2(Left(exceptionTriple(0)))(stringIterator) = " + Ch04_EitherList.Right("a").map2(Ch04_EitherList.Left(exceptionTriple(0)))(stringIterator))
+  println("Right(\"a\").map2(Right(23))(stringIterator) = " + Ch04_EitherList.Right("a").map2(Ch04_EitherList.Right(23))(stringIterator))
+  println("Right(\"a\").map2(Right(0))(stringIterator) = " + Ch04_EitherList.Right("a").map2(Ch04_EitherList.Right(0))(stringIterator))
+  println("Right(\"a\").map2(Right(-1))(stringIterator) = " + Ch04_EitherList.Right("a").map2(Ch04_EitherList.Right(-1))(stringIterator))
+
+  println("** Exercise 4.7 **")
+  //sequence
+  println("sequence(Nil) = " + Ch04_EitherList.sequence(Nil))
+  println("sequence(List(Left(exceptionTriple(0)))) = " + Ch04_EitherList.sequence(List(Ch04_EitherList.Left(exceptionTriple(0)))))
+  println("sequence(List(Left(exceptionTriple(0)),Left(exceptionTriple(3)))) = " + Ch04_EitherList.sequence(List(Ch04_EitherList.Left(exceptionTriple(0)),Ch04_EitherList.Left(exceptionTriple(3)))))
+  println("sequence(List(Right(0))) = " + Ch04_EitherList.sequence(List(Ch04_EitherList.Right(0))))
+  println("sequence(List(Right(0),Right(1))) = " + Ch04_EitherList.sequence(List(Ch04_EitherList.Right(0), Ch04_EitherList.Right(1))))
+  println("sequence(List(Right(0),Right(1),Right(2),Right(3),Right(4))) = "
+    + Ch04_EitherList.sequence(List(Ch04_EitherList.Right(0), Ch04_EitherList.Right(1), Ch04_EitherList.Right(2), Ch04_EitherList.Right(3), Ch04_EitherList.Right(4))))
+  println("sequence(List(Right(0),Right(1),Left(exceptionTriple(0)),Right(2),Right(3),Right(4))) = "
+    + Ch04_EitherList.sequence(List(Ch04_EitherList.Right(0), Ch04_EitherList.Right(1), Ch04_EitherList.Left(exceptionTriple(0)), Ch04_EitherList.Right(2), Ch04_EitherList.Right(3), Ch04_EitherList.Right(4))))
+  println("sequence(List(Right(0),Right(1),Left(exceptionTriple(0)),Right(2),Left(exceptionTriple(3)),Right(4))) = "
+    + Ch04_EitherList.sequence(List(Ch04_EitherList.Right(0), Ch04_EitherList.Right(1), Ch04_EitherList.Left(exceptionTriple(0))
+                              , Ch04_EitherList.Right(2), Ch04_EitherList.Left(exceptionTriple(3)), Ch04_EitherList.Right(4))))
+  //traverse
+  println("traverse(Nil)(eithernalListStringLength) = " + Ch04_EitherList.traverse(Nil)(eithernalListStringLength))
+  println("traverse(List(\"\",\"a\",\"b\",\"abc\",\"abcd\",\"abcde\"))(eithernalListStringLength) = "
+    + Ch04_EitherList.traverse(List("", "a", "b", "abc", "abcd", "abcde"))(eithernalListStringLength))
+  println("traverse(Nil)(eithernalListToInt) = " + Ch04_EitherList.traverse(Nil)(eithernalListToInt))
+  println("traverse(List(\"0\",\"1\",\"2\",\"3\",\"4\"))(eithernalListToInt) = " + Ch04_EitherList.traverse(List("0", "1", "2", "3", "4"))(eithernalListToInt))
+  println("traverse(List(\"0\",\"1\",\"\",\"2\",\"c\",\"4\"))(eithernalListToInt) = "
+    + Ch04_EitherList.traverse[String, String, Int](List("0", "1", "", "2", "c", "4"))(eithernalListToInt))
+
+  println("mkPerson(\"Hans\", 42) = " + Ch04_EitherList.mkPerson("Hans", 42))
+  println("mkPerson(\"\", 42) = " + Ch04_EitherList.mkPerson("", 42))
+  println("mkPerson(\"Peter\", -1) = " + Ch04_EitherList.mkPerson("Peter", -1))
+  println("mkPerson(\"\", -1) = " + Ch04_EitherList.mkPerson("", -1))
 
 }
