@@ -53,7 +53,7 @@ object List {
 
   //exercise 3.7
   def foldRight[A, B](as: List[A], z: B)(f: A => (=> B) => B): B = {
-    //  println("foldRight(%s)".format(as))
+    // println("foldRight(%s)".format(as + "," + z))
     as match {
       case Nil => z
       case Cons(x, xs) => f(x)(foldRight(xs, z)(f))
@@ -85,12 +85,15 @@ object List {
   // end of exercise 3.7
 
   //exercise 3.10
-  @tailrec
   // first B parameter B is meant to be referenced by name instead of value
   // for lazy evaluation, so (=>B) instead of B
-  def foldLeft[A, B](as: List[A], z: B)(f: A => (=> B) => B): B = as match {
-    case Nil => z
-    case Cons(x, xs) => foldLeft(xs, f(x)(z))(f)
+  @tailrec
+  def foldLeft[A, B](as: List[A], z: B)(f: A => (=> B) => B): B = {
+    // println("foldLeft(%s)".format(as + "," + z))
+    as match {
+      case Nil => z
+      case Cons(x, xs) => foldLeft(xs, f(x)(z))(f)
+    }
   }
 
   //exercise 3.11
