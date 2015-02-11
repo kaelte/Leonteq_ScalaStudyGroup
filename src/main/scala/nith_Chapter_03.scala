@@ -2,11 +2,15 @@ import scala.annotation.tailrec
 
 sealed trait List[+A]
 
-case object Nil extends List[Nothing]
-
-case class Cons[+A](head: A, tail: List[A]) extends List[A]
+//case object Nil extends List[Nothing]
+//
+//case class Cons[+A](head: A, tail: List[A]) extends List[A]
 
 object List {
+
+  case object Nil extends List[Nothing]
+
+  case class Cons[+A](head: A, tail: List[A]) extends List[A]
 
   def apply[A](as: A*): List[A] = {
     @tailrec
@@ -215,6 +219,8 @@ case class fTree[A](value: A, ts: List[FinTree[A]]) extends FinTree[A]
 
 object FinTree {
 
+  import List.{Nil,Cons}
+
   def branches[A](t: FinTree[A]): List[FinTree[A]] = t match {
     case fTree(value, ts) => ts
   }
@@ -242,6 +248,8 @@ object FinTree {
 
 
 object nith_Chapter_03 {
+
+  import List.{Nil,Cons}
 
   //exercise 3.1
   def matchFun(l: List[Int]): Int = l match {

@@ -1,5 +1,7 @@
+import List.{Nil,Cons}
 
 object Ch04_Option {
+
 
   sealed trait Option[+A] {
     // 4.1 Implements Option functions, better use getOrElse and map
