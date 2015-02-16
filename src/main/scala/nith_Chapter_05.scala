@@ -13,12 +13,12 @@ object Ch05 {
     }
 
     def myString: String = {
-      def go[A](sa: Stream[A]): String = sa match {
+      def go[A](sa: => Stream[A]): String = sa match {
         case Empty => ""
         case Cons(h, t) => {
-          lazy val hString:String = h() match {
+          lazy val hString: String = h() match {
             case x@Empty => "()"
-            case x@Cons(_,_) => x.myString
+            case x@Cons(_, _) => x.myString
             case x => x.toString
           }
           if (t() == Empty) hString else hString + "," + go[A](t())
@@ -39,16 +39,21 @@ object Ch05 {
       List.reverse(go(this)(List.Nil))
     }
 
+    def toList2: List[A] = this match {
+      case Empty => List.Nil
+      case Cons(h, t) => List.Cons[A](h(), t().toList2)
+    }
+
     // 5.2 Write the function take(n) for returning the first n elements of a Stream,
     // and drop(n) for skipping the first n elements of a Stream.
     final def take(n: Int): Stream[A] = this match {
       case Empty => Empty
       case Cons(h, t) if (n < 1) => {
-//        println("...take("+n+"): nothing to do. Supi !")
+        //        println("...take("+n+"): nothing to do. Supi !")
         Empty
       }
-      case Cons(h, t) if (n > 0) =>  {
-//        println("...take("+n+"): Shit! This guy wants sth from me !")
+      case Cons(h, t) if (n > 0) => {
+        //        println("...take("+n+"): Shit! This guy wants sth from me !")
         Cons(h, () => t().take(n - 1))
       }
     }
@@ -70,6 +75,7 @@ object Ch05 {
     // Your implementation should terminate the traversal as soon as it encounters a nonmatching value.
     final def forAll(p: A => Boolean): Boolean = !this.exists(a => !p(a))
 
+
     // One could implement exists using foldRight. However foldRight is not tail recursive :(
     @tailrec
     final def exists(p: A => Boolean): Boolean = this match {
@@ -77,10 +83,18 @@ object Ch05 {
       case _ => false
     }
 
-    final def foldRight[B](z: => B)(f: (=> A, => B) => B): B = {
+    final def foldRight[B](z: => B)(f: (A, => B) => B): B = {
       // println("...foldRight(%s)".format("this.getClass()="+this.getClass().toString+"  this.take(10)="+this.take(10).myString + " , z=" + z))
       this match {
         case Cons(h, t) => f(h(), t().foldRight(z)(f))
+        case _ => z
+      }
+    }
+
+    final def foldRightLazy[B](z: => B)(f: (=> A, => B) => B): B = {
+      // println("...foldRight(%s)".format("this.getClass()="+this.getClass().toString+"  this.take(10)="+this.take(10).myString + " , z=" + z))
+      this match {
+        case Cons(h, t) => f(h(), t().foldRightLazy(z)(f))
         case _ => z
       }
     }
@@ -94,10 +108,13 @@ object Ch05 {
     // 5.7 Implement map, filter, append, and flatMap using foldRight.
     // The append method should be non-strict in its argument.
     def append[B >: A](s2: => Stream[B]): Stream[B] = foldRight[Stream[B]](s2)((a, s) => Stream.cons[B](a, s))
+
     def streamAppend[B >: A](ss: Stream[Stream[B]]): Stream[B] = this.append(ss.foldRight[Stream[B]](Empty)((a, s) => a.append(s)))
 
     def map[B](f: (=> A) => B): Stream[B] = foldRight[Stream[B]](Empty)((a, bs) => Cons(() => f(a), () => bs))
+
     def filter(p: (=> A) => Boolean): Stream[A] = foldRight[Stream[A]](Empty)((a, s) => if (p(a)) Cons(() => a, () => s) else s)
+
     def flatMap[B](f: (=> A) => Stream[B]): Stream[B] = foldRight[Stream[B]](Empty)((a, s) => f(a).append(s))
 
 
@@ -110,9 +127,27 @@ object Ch05 {
     def hasSubsequence[B](s: Stream[B]): Boolean =
       tails exists (_ startsWith s)
 
+
+
+    // Additional Experiments
+
+    final def doubleFoldRight[C, B](cs: => Stream[C])(zThis: => B)(zCs: => B)(f: A => C => (=> B) => B): B = {
+      this match {
+        case Cons(h, t) => cs match {
+          case Cons(c, cTail) => f(h())(c())(t().doubleFoldRight(cTail())(zThis)(zCs)(f))
+          case _ => zCs
+        }
+        case _ => zThis
+      }
+    }
+
+    final def streamCons[B >: A](ss: Stream[Stream[B]]): Stream[Stream[B]]
+    = doubleFoldRight[Stream[B], Stream[Stream[B]]](ss)(Empty)(Empty)(h => bs => rec => Cons[Stream[B]](() => Cons(() => h, () => bs), () => rec))
   }
 
+
   case object Empty extends Stream[Nothing]
+
   case class Cons[+A](h: () => A, t: () => Stream[A]) extends Stream[A]
 
   object Stream {
@@ -192,8 +227,8 @@ object nith_Chapter_05 extends App {
   // finite streams
   val emptyStream: Ch05.Stream[Int] = Ch05.Stream()
   val oneStream: Ch05.Stream[Int] = Ch05.Stream(0)
-  val fiveStream: Ch05.Stream[Int] = Ch05.Stream(0,1,2,3,4)
-  val tenStream: Ch05.Stream[Int] = Ch05.Stream(0,1,2,3,4,5,6,7,8,9)
+  val fiveStream: Ch05.Stream[Int] = Ch05.Stream(0, 1, 2, 3, 4)
+  val tenStream: Ch05.Stream[Int] = Ch05.Stream(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
   val stringStream: Ch05.Stream[String]
   = Ch05.Stream[String]("Hello", "This is my first stream of strings.", "I hope you like it.", "Enjoy !")
   // infinite streams
@@ -204,8 +239,11 @@ object nith_Chapter_05 extends App {
   val squareStream: Ch05.Stream[Int] = Ch05.Stream[Int](lazySquare)
   val streamOfMultiples: (=> Int) => Ch05.Stream[Int] = n => Ch05.Stream[Int](lazyMultiple(n))
   // stream of streams
-  val streamOfFiniteStreams: Ch05.Stream[Ch05.Stream[Int]] = Ch05.Stream(n=>Ch05.Stream(n - 1, n, n + 1))
-  val streamOfInfiniteStreams: Ch05.Stream[Ch05.Stream[Int]] = Ch05.Stream((n=>streamOfMultiples(n)))
+  val streamOfFiniteStreams: Ch05.Stream[Ch05.Stream[Int]] = Ch05.Stream(n => Ch05.Stream(n - 1, n, n + 1))
+  val finiteStreamOfInfiniteStreams: Ch05.Stream[Ch05.Stream[Int]] = Ch05.Stream(ones)
+  val streamOfInfiniteStreams: Ch05.Stream[Ch05.Stream[Int]] = Ch05.Stream((n => streamOfMultiples(n)))
+
+  lazy val onesList: List[Int] = List.Cons(1, onesList)
 
   println("****** Chapter_05 ******")
 
@@ -247,10 +285,10 @@ object nith_Chapter_05 extends App {
     + squareStream.takeWhile(n => (n % 2 == 0) || (n < 10)).myString)
 
   println("** Exercise 5.4 **")
-  println("onesAndTwos.exists(_==1) = " + onesAndTwos.exists(_==1))
+  println("onesAndTwos.exists(_==1) = " + onesAndTwos.exists(_ == 1))
   // The following example shows that the existence function is not semi-decidable
-  println("!!!! onesAndTwos.exists(_==2) = yields INFINITE LOOP WITHOUT THROWING ERROR (at least not within 3 minutes)" )
-  println("!!!! onesAndTwos contains 2 but the search nevertheless does not terminate." )
+  println("!!!! onesAndTwos.exists(_==2) = yields INFINITE LOOP WITHOUT THROWING ERROR (at least not within 3 minutes)")
+  println("!!!! onesAndTwos contains 2 but the search nevertheless does not terminate.")
   //println("onesAndTwos.exists(_==2) = " + onesAndTwos.exists(_==2))
   println("fiveStream.forAll(_<6) = " + fiveStream.forAll(_ < 6))
   println("fiveStream.forAll(_%2==0) = " + fiveStream.forAll(_ % 2 == 0))
@@ -282,19 +320,6 @@ object nith_Chapter_05 extends App {
   println("identityStream.append(squareStream).take(10) = " + identityStream.append(squareStream).take(10).myString)
   println("identityStream.append(identityStream).append(identityStream).append(identityStream).take(20) = "
     + identityStream.append(identityStream).append(identityStream).append(identityStream).take(20).myString)
-  println("** streamAppend ")
-  println("Empty.streamAppend[Int](Empty) = " + Ch05.Empty.streamAppend[Int](Ch05.Empty).myString)
-  println("Empty.streamAppend[String](Stream(Stream(\"a\"))) = " + Ch05.Empty.streamAppend[String](Ch05.Stream(Ch05.Stream("a"))).myString)
-  println("Empty.streamAppend[Int](Stream(oneStream)) = " + Ch05.Empty.streamAppend[Int](Ch05.Stream(oneStream)).myString)
-  println("oneStream.streamAppend[Int](Stream(oneStream)) = " + oneStream.streamAppend[Int](Ch05.Stream(oneStream)).myString)
-  println("oneStream.streamAppend[Int](Ch05.Stream(fiveStream,tenStream,oneStream)) = "
-    + oneStream.streamAppend[Int](Ch05.Stream(fiveStream,tenStream,oneStream)).myString)
-  println("identityStream.streamAppend[Int](Ch05.Stream(fiveStream,tenStream,oneStream).take(20)) = "
-    + identityStream.streamAppend[Int](Ch05.Stream(fiveStream,tenStream,oneStream)).take(20).myString)
-  println("Empty.streamAppend[Int](streamOfFiniteStreams).take(0) = "
-    + Ch05.Empty.streamAppend[Int](streamOfFiniteStreams).take(0).myString)
-  println("Empty.streamAppend[Int](streamOfInfiniteStreams).take(20) = "
-    + Ch05.Empty.streamAppend[Int](streamOfInfiniteStreams).take(20).myString)
   println("** map ")
   println("stringStream.map(_.length) = " + stringStream.map(_.length).myString)
   println("** filter ")
@@ -308,11 +333,34 @@ object nith_Chapter_05 extends App {
     + fiveStream.flatMap(n => Ch05.Stream(n - 1, n, n + 1)).myString)
   println("fiveStream.drop(3).flatMap(streamOfMultiples).take(20) = "
     + fiveStream.drop(3).flatMap(streamOfMultiples).take(20).myString)
-  println("squareStream.flatMap[Int](n=>Ch05.Stream[Int](n)).take(20) = " + squareStream.flatMap[Int](n=>Ch05.Stream[Int](n)).take(20))
+  println("squareStream.flatMap[Int](n=>Ch05.Stream[Int](n)).take(20) = " + squareStream.flatMap[Int](n => Ch05.Stream[Int](n)).take(20))
   println("squareStream.flatMap(streamOfMultiples).take(42) = " + squareStream.flatMap(streamOfMultiples).take(42).myString)
   println("squareStream.drop(3).flatMap(streamOfMultiples).take(20) = " + squareStream.drop(3).flatMap(streamOfMultiples).take(20))
 
   println("!!!!! NOT FINISHED !!!!!")
   println("** Exercise 5.10 **")
   println("!!!!! NOT FINISHED !!!!!")
+
+
+  println("**** Additional Experiments: nnwo the fun starts ****")
+  // infinite loop:  println(Ch05.Stream(ones).foldRightLazy[Int](0)((s,n)=>if (s.exists(_==2)) n else n))
+  println("** streamAppend **")
+  println("Empty.streamAppend[Int](Empty) = " + Ch05.Empty.streamAppend[Int](Ch05.Empty).myString)
+  println("Empty.streamAppend[String](Stream(Stream(\"a\"))) = " + Ch05.Empty.streamAppend[String](Ch05.Stream(Ch05.Stream("a"))).myString)
+  println("Empty.streamAppend[Int](Stream(oneStream)) = " + Ch05.Empty.streamAppend[Int](Ch05.Stream(oneStream)).myString)
+  println("oneStream.streamAppend[Int](Stream(oneStream)) = " + oneStream.streamAppend[Int](Ch05.Stream(oneStream)).myString)
+  println("oneStream.streamAppend[Int](Ch05.Stream(fiveStream,tenStream,oneStream)) = "
+    + oneStream.streamAppend[Int](Ch05.Stream(fiveStream, tenStream, oneStream)).myString)
+  println("identityStream.streamAppend[Int](Ch05.Stream(fiveStream,tenStream,oneStream).take(20)) = "
+    + identityStream.streamAppend[Int](Ch05.Stream(fiveStream, tenStream, oneStream)).take(20).myString)
+  println("Empty.streamAppend[Int](streamOfFiniteStreams).take(0) = "
+    + Ch05.Empty.streamAppend[Int](streamOfFiniteStreams).take(0).myString)
+  println("Empty.streamAppend[Int](streamOfInfiniteStreams).take(20) = "
+    + Ch05.Empty.streamAppend[Int](streamOfInfiniteStreams).take(20).myString)
+  println("** streamCons **")
+  println("fiveStream.streamConsFoldRight(Ch05.Stream(tenStream.drop(2), oneStream, fiveStream.drop(1), oneStream, fiveStream, tenStream))="
+    +fiveStream.streamCons(Ch05.Stream(tenStream.drop(2), oneStream, fiveStream.drop(1), oneStream, fiveStream, tenStream)).myString)
+  println("identityStream.streamConsFoldRight(streamOfInfiniteStreams)="
+    +identityStream.streamCons(streamOfInfiniteStreams))
+
 }
