@@ -128,9 +128,9 @@ object Ch05 {
       tails exists (_ startsWith s)
 
 
-
     // Additional Experiments
 
+    // write ZIP function
     final def doubleFoldRight[C, B](cs: => Stream[C])(zThis: => B)(zCs: => B)(f: A => C => (=> B) => B): B = {
       this match {
         case Cons(h, t) => cs match {
@@ -172,16 +172,19 @@ object Ch05 {
 
   // 5.8 Generalize ones slightly to the function constant, which
   // returns an infinite Stream of a given value.
-  def constant[A](a: A): Stream[A] = ???
+  final def constant[A](a: A): Stream[A] = Stream(_ => a)
 
 
   // 5.9 Write a function that generates an infinite stream of integers,
   // starting from n, then n + 1, n + 2, and so on.7
-  def from(n: Int): Stream[Int] = ???
-
+  final def from(n: Int): Stream[Int] = Stream(i => i + n)
 
   // 5.10 Write a function fibs that generates the infinite stream of
   // Fibonacci numbers: 0, 1, 1, 2, 3, 5, 8, and so on.
+  final def fibs: () => Stream[BigInt] = () => {
+    def go(s: => Stream[BigInt], x: BigInt, y: BigInt):Stream[BigInt] = Stream.cons[BigInt](x, go(s, y, x + y))
+    go(Empty, 0, 1)
+  }
 
 
   // 5.11 Write a more general stream-building function called unfold.
@@ -337,8 +340,18 @@ object nith_Chapter_05 extends App {
   println("squareStream.flatMap(streamOfMultiples).take(42) = " + squareStream.flatMap(streamOfMultiples).take(42).myString)
   println("squareStream.drop(3).flatMap(streamOfMultiples).take(20) = " + squareStream.drop(3).flatMap(streamOfMultiples).take(20))
 
-  println("!!!!! NOT FINISHED !!!!!")
+  println("** Exercise 5.8 **")
+  println("constant[Int](1).take(20)=" + Ch05.constant[Int](1).take(20).myString)
+  println("constant[String](\"I like Scala.\").take(9)=" + Ch05.constant[String]("I like Scala.").take(9).myString)
+
+  println("** Exercise 5.9 **")
+  println("from(13).take(20)=" + Ch05.from(13).take(20).myString)
+  println("from(-213).take(20)=" + Ch05.from(-213).take(20).myString)
+
   println("** Exercise 5.10 **")
+  println("fibs().take(30)=" + Ch05.fibs().take(30).myString)
+
+  println("!!!!! NOT FINISHED !!!!!")
   println("!!!!! NOT FINISHED !!!!!")
 
 
@@ -359,8 +372,8 @@ object nith_Chapter_05 extends App {
     + Ch05.Empty.streamAppend[Int](streamOfInfiniteStreams).take(20).myString)
   println("** streamCons **")
   println("fiveStream.streamConsFoldRight(Ch05.Stream(tenStream.drop(2), oneStream, fiveStream.drop(1), oneStream, fiveStream, tenStream))="
-    +fiveStream.streamCons(Ch05.Stream(tenStream.drop(2), oneStream, fiveStream.drop(1), oneStream, fiveStream, tenStream)).myString)
+    + fiveStream.streamCons(Ch05.Stream(tenStream.drop(2), oneStream, fiveStream.drop(1), oneStream, fiveStream, tenStream)).myString)
   println("identityStream.streamConsFoldRight(streamOfInfiniteStreams)="
-    +identityStream.streamCons(streamOfInfiniteStreams))
+    + identityStream.streamCons(streamOfInfiniteStreams))
 
 }
