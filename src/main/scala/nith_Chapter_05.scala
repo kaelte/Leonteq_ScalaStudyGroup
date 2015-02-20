@@ -287,9 +287,8 @@ object Ch05 {
   // 5.10 Write a function fibs that generates the infinite stream of
   // Fibonacci numbers: 0, 1, 1, 2, 3, 5, 8, and so on.
   final def fibs: () => Stream[BigInt] = () => {
-    def go(s: => Stream[BigInt], x: BigInt, y: BigInt): Stream[BigInt] = Stream.cons[BigInt](x, go(s, y, x + y))
-    go(Empty, 0, 1)
-
+    def go(x: BigInt, y: BigInt): Stream[BigInt] = Stream.cons[BigInt](x, go(y, x + y))
+    go(0, 1)
   }
 
 
