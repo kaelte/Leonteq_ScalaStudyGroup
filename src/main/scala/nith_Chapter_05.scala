@@ -92,7 +92,7 @@ object Ch05 {
     }
 
     @tailrec
-    final def foldLeft[B](z: B)(f: A => (=> B) => B): B = {
+    final def foldLeft[B](z: B)(f: A => B => B): B = {
       // println("...foldLeft(%s)".format("this.getClass()="+this.getClass().toString+"  this.take(10)="+this.take(10).myString + " , z=" + z))
       this match {
         case Cons(a, as) => as().foldLeft(f(a())(z))(f)
@@ -100,7 +100,7 @@ object Ch05 {
       }
     }
 
-    def reverse: Stream[A] = this.foldLeft(Empty: Stream[A])(a => l => Cons(() => a, () => l))
+    def reverse: Stream[A] = this.foldLeft(Empty: Stream[A])(a => aStream => Cons(() => a, () => aStream))
 
 
     // 5.5 Use foldRight to implement takeWhile.
@@ -152,6 +152,7 @@ object Ch05 {
       case _ => None
     })
 
+    // there is some potential for improvement
     final def zipAll[B](s2: Stream[B]): Stream[(Option[A], Option[B])]
     = unfold[(Option[A], Option[B]), (Stream[A], Stream[B])]((this, s2))(x => x._1 match {
       case Cons(a, aTail) => x._2 match {
@@ -167,7 +168,6 @@ object Ch05 {
     // 5.14 Hard: Implement startsWith using functions you’ve written. It should check
     // if one Stream is a prefix of another. For instance, Stream(1,2,3)
     // startsWith Stream(1,2) would be true.
-    //    def startsWith[A](s: Stream[A]): Boolean = this.zipWith(s)(a => a => a == a).forAll(p=>p)
     final def startsWith[A](s: Stream[A]): Boolean = this.zipAll(s).forAll(x => (x._2 == None) || x._1 == x._2)
 
 
@@ -247,7 +247,7 @@ object Ch05 {
 
     final def scanRightReverse[B >: A, C](f: B => C => C)(z: (C, B)): Stream[C] = this.scanLeft[B, C](f)(z).reverse
 
-    final def scanRightUnfoldLeft[B >: A, C](f: B => C => C)(z: (C, B)): Stream[C] = {
+    final def scanRightUnfoldReverse[B >: A, C](f: B => C => C)(z: (C, B)): Stream[C] = {
       lazy val initialState: (C, Stream[B]) = (z._1, Stream.cons[B](z._2, this))
       lazy val unFoldFun: ((C, Stream[B])) => Option[(C, (C, Stream[B]))] = {
         case (z, bStream) => {
@@ -263,7 +263,7 @@ object Ch05 {
           }
         }
       }
-      unfoldLeft[C, Tuple2[C, Stream[B]]](Empty)(initialState)(unFoldFun)
+      unfoldReverse[C, Tuple2[C, Stream[B]]](Empty)(initialState)(unFoldFun)
     }
 
 
@@ -340,15 +340,15 @@ object Ch05 {
 
   // uses tail rec but does not terminate on infinite state streams
   @tailrec
-  final def unfoldLeft[A, S](aS: Stream[A])(z: S)(f: S => Option[(A, S)]): Stream[A] = f(z) match {
-    case Some(x) => unfoldLeft[A, S](Stream.cons[A](x._1, aS))(x._2)(f)
+  final def unfoldReverse[A, S](aS: Stream[A])(z: S)(f: S => Option[(A, S)]): Stream[A] = f(z) match {
+    case Some(x) => unfoldReverse[A, S](Stream.cons[A](x._1, aS))(x._2)(f)
     case None => aS
   }
 
   // 5.12 Write fibs, from, constant, and ones in terms of unfold.
   // calculates the Fibonacci numbers up to n
-  final def fibUnfold: BigInt => Stream[BigInt]
-  = n => unfold[BigInt, Tuple2[BigInt, BigInt]]((0, 1))(x => if (x._1 < n) Some((x._1, (x._2, x._1 + x._2))) else None)
+  final def fibUnfold(n :BigInt) : Stream[BigInt]
+  = unfoldReverse[BigInt, Tuple2[BigInt, BigInt]](Empty)((0, 1))(x => if (x._1 < n) Some((x._1, (x._2, x._1 + x._2))) else None)
 
 }
 
@@ -590,15 +590,15 @@ object nith_Chapter_05 extends App {
   println("identityStream.scanRightReverse[Int,Boolean]( n => p => (n % 7 < 6) != p)((true,1)).take(10) = *** INFINITE LOOP ***")
 
   println("** scanRightUnfoldLeft ")
-  println("Empty.scanRightUnfoldLeft = " + Ch05.Stream.empty[Int].scanRightUnfoldLeft[Int, Int](n => m => n + m)((0, 0)).myString)
-  println("Stream(1).scanRightUnfoldLeft = " + Ch05.Stream(1).scanRightUnfoldLeft[Int, Int](n => m => n + m)(0, 0).myString)
-  println("Stream(1,20).scanRightUnfoldLeft[Int,Int](n=>m=>n+m)(0,0) = " + Ch05.Stream(1, 20).scanRightUnfoldLeft[Int, Int](n => m => n + m)(0, 0).myString)
+  println("Empty.scanRightUnfoldLeft = " + Ch05.Stream.empty[Int].scanRightUnfoldReverse[Int, Int](n => m => n + m)((0, 0)).myString)
+  println("Stream(1).scanRightUnfoldLeft = " + Ch05.Stream(1).scanRightUnfoldReverse[Int, Int](n => m => n + m)(0, 0).myString)
+  println("Stream(1,20).scanRightUnfoldLeft[Int,Int](n=>m=>n+m)(0,0) = " + Ch05.Stream(1, 20).scanRightUnfoldReverse[Int, Int](n => m => n + m)(0, 0).myString)
   println("Stream(1,20,300).scanRightUnfoldLeft[Int,Int](n=>m=>n+m)(0,0) = "
-    + Ch05.Stream(1, 20, 300).scanRightUnfoldLeft[Int, Int](n => m => n + m)(0, 0).myString)
+    + Ch05.Stream(1, 20, 300).scanRightUnfoldReverse[Int, Int](n => m => n + m)(0, 0).myString)
   println("Stream(1,20,300,4000,50000,600000,7000000,80000000,900000000).scanRightUnfoldLeft[Int,Int](n=>m=>n+m)(0,0) = "
-    + Ch05.Stream(1, 20, 300, 4000, 50000, 600000, 7000000, 80000000, 900000000).scanRightUnfoldLeft[Int, Int](n => m => n + m)(0, 0).myString)
+    + Ch05.Stream(1, 20, 300, 4000, 50000, 600000, 7000000, 80000000, 900000000).scanRightUnfoldReverse[Int, Int](n => m => n + m)(0, 0).myString)
   println("Stream(\"a\",\"bc\",\"def\").scanRightUnfoldLeft[String,Int]( s => n => s.length + n)((0,\"\")) = "
-    + Ch05.Stream("a", "bc", "def").scanRightUnfoldLeft[String, Int](s => n => s.length + n)((0, "")).myString)
+    + Ch05.Stream("a", "bc", "def").scanRightUnfoldReverse[String, Int](s => n => s.length + n)((0, "")).myString)
   println("ones.scanRightUnfoldLeft[Int,Int](n => m => n + m)((0,0)).take(10) = *** INFINITE LOOP ***")
   println("ones.scanRightUnfoldLeft[Int,Boolean]( n => p => (n % 2 == 1) && p)((true,1)).take(10) = *** INFINITE LOOP ***")
   println("identityStream.scanRightUnfoldLeft[Int,Boolean]( n => p => (n % 7 < 6) && p)((true,1)).take(10) = *** INFINITE LOOP ***")
