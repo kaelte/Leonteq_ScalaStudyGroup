@@ -310,6 +310,11 @@ object Ch05 {
       go(f)(0)
     }
 
+    final def recApply[A](z:A)(f: (=> A) => A): Stream[A] = {
+      def go(aStream:Stream[A])(f: (=> A) => A): Stream[A] = cons(f(aStream.headOption.get), aStream)
+      go(cons(z, empty))(f)
+    }
+
   }
 
 
@@ -605,6 +610,9 @@ object nith_Chapter_05 extends App {
   println("identityStream.scanRightUnfoldLeft[Int,Boolean]( n => p => (n % 7 < 6) != p)((true,1)).take(10) = *** INFINITE LOOP ***")
 
   println("**** Additional Experiments: the fun starts ****")
+
+  println("Stream.recApply(0)(n=>n+1).take(10) = "+Ch05.Stream.recApply(0)(n=>n+1).take(10).myString)
+  println("Stream.recApply(\"*\")(s=>s+s).take(10) = "+Ch05.Stream.recApply("*")(s=>s+s).take(10).myString)
   println("** reverse ")
   println("Empty.reverse) = " + Ch05.Empty.reverse.myString)
   println("fiveStream.reverse = " + fiveStream.reverse.myString)
