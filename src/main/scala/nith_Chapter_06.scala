@@ -17,22 +17,61 @@ object Ch06 {
   // 6.1 Write a function that uses RNG.nextInt to generate a random integer between 0 and
   // Int.maxValue (inclusive). Make sure to handle the corner case when nextInt returns
   // Int.MinValue, which doesn’t have a non-negative counterpart.
-  def nonNegativeInt(rng: RNG): (Int, RNG) = rng.nextInt match {case (x,y) => ( if (x<0) x - Int.MinValue else x ,y)}
-  /*
+  def nonNegativeInt(rng: RNG): (Int, RNG) = rng.nextInt match {
+    case (x, y) => (if (x < 0) x - Int.MinValue else x, y)
+  }
+
   // 6.2 Write a function to generate a Double between 0 and 1, not including 1.
   // Note: You can use Int.MaxValue to obtain the maximum positive integer value, and you
   // can use x.toDouble to convert an x: Int to a Double.
-  def double(rng: RNG): (Double, RNG) = ???
+  def double(rng: RNG): (Double, RNG) = nonNegativeInt(rng) match {
+    case (x, y) => (0 - x.toDouble / Int.MinValue, y)
+  }
+
 
   // 6.3 Write functions to generate an (Int, Double) pair, a (Double, Int) pair, and a
   // (Double, Double, Double) 3-tuple. You should be able to reuse the functions you’ve already written.
-  def intDouble(rng: RNG): ((Int,Double), RNG) = ???
-  def doubleInt(rng: RNG): ((Double,Int), RNG) = ???
-  def double3(rng: RNG): ((Double,Double,Double), RNG) = ???
+  // QUESTION
+  // Do we require the integer to be non-negative and the double to be in [0;1[ ?
+  // If not then it does not give much sense to resue the functions from 6.1 and 6.2
+  // Therefore I assume yes
+  def intDouble(rng: RNG): ((Int, Double), RNG) = nonNegativeInt(rng) match {
+    case (n, rng1) => ((n, double(rng1)._1), rng1)
+  }
+
+  def doubleInt(rng: RNG): ((Double, Int), RNG) = intDouble(rng) match {
+    case ((n, d), rng1) => ((d, n), rng1)
+  }
+
+  def double3(rng: RNG): ((Double, Double, Double), RNG) = double(rng) match {
+    case (d1, rng1) => double(rng1) match {
+      case (d2, rng2) => double(rng2) match {
+        case (d3, rng3) => ((d1, d2, d3), rng3)
+      }
+    }
+  }
 
   // 6.4 Write a function to generate a list of random integers.
-  def ints(count: Int)(rng: RNG): (List[Int], RNG) = ???
 
+  def ints(count: Int)(rng: RNG): (List[Int], RNG) = {
+    def createNext(ir: (Int, RNG)): Option[((Int, RNG), (Int, RNG))] = ir match {
+      case (i, r) => if (count < i) None
+      else r.nextInt match {
+        case (n: Int, r2: RNG) => Some[((Int, RNG), (Int, RNG))](((n, r2), (i + 1, r2)))
+      }
+    }
+    // We use onfoldReverse in order to have the last RNG as head of the list
+    // so that we can simply return head._2
+    val intRngs: List[(Int, RNG)] = Ch05.unfoldReverse[(Int, RNG), (Int, RNG)](Ch05.Empty)((1, SimpleRNG(0)))(createNext).toList
+
+    intRngs match {
+      case List.Cons(n, tail) => (List.map(intRngs)(x => x._1), n._2)
+      case _ => (List.Nil, rng)
+    }
+  }
+
+
+  /*
 
   type Rand[+A] = RNG => (A, RNG)
 
@@ -93,7 +132,7 @@ object Ch06 {
 
 object nith_Chapter_06 extends App {
 
-  val SimpleRNGstream: (Long => Ch05.Stream[Int]) = fstSeed => Ch05.unfold[Int,Ch06.RNG](Ch06.SimpleRNG(fstSeed))(rng => Some(rng.nextInt))
+  val SimpleRNGstream: (Long => Ch05.Stream[Int]) = fstSeed => Ch05.unfold[Int, Ch06.RNG](Ch06.SimpleRNG(fstSeed))(rng => Some(rng.nextInt))
 
   println("****** Chapter_06 ******")
   println("Int.MinValue = %s".format(Int.MinValue))
@@ -109,10 +148,28 @@ object nith_Chapter_06 extends App {
   println("SimpleRNGstream(42).take(10) = %s".format(SimpleRNGstream(42).take(10).myString))
 
   println("** Exercise 6.1 **")
-  println("unfold(SimpleRNG(-1))(rng => Some(nonNegativeInt(rng))).take(20)\n  = %s"
-    .format(Ch05.unfold[Int,Ch06.RNG](Ch06.SimpleRNG(-1))(rng => Some(Ch06.nonNegativeInt(rng))).take(20).myString))
+  println("unfold(SimpleRNG(0))(rng => Some(nonNegativeInt(rng))).take(20)\n  = %s"
+    .format(Ch05.unfold[Int, Ch06.RNG](Ch06.SimpleRNG(0))(rng => Some(Ch06.nonNegativeInt(rng))).take(20).myString))
 
-  println("xxx = %s".format((-10)%7))
+  println("** Exercise 6.2 **")
+  println("unfold(SimpleRNG(0))(rng => Some(double(rng))).take(20)\n  = %s"
+    .format(Ch05.unfold[Double, Ch06.RNG](Ch06.SimpleRNG(0))(rng => Some(Ch06.double(rng))).take(20).myString))
+
+  println("** Exercise 6.3 **")
+  println("unfold(SimpleRNG(-1))(rng => Some(intDouble(rng))).take(10)\n  = %s"
+    .format(Ch05.unfold[(Int, Double), Ch06.RNG](Ch06.SimpleRNG(-1))(rng => Some(Ch06.intDouble(rng))).take(10).myString))
+  println("unfold(SimpleRNG(-1))(rng => Some(doubleInt(rng))).take(10)\n  = %s"
+    .format(Ch05.unfold[(Double, Int), Ch06.RNG](Ch06.SimpleRNG(-1))(rng => Some(Ch06.doubleInt(rng))).take(10).myString))
+  println("unfold(SimpleRNG(-1))(rng => Some(double3(rng))).take(10)\n  = %s"
+    .format(Ch05.unfold[(Double, Double, Double), Ch06.RNG](Ch06.SimpleRNG(-1))(rng => Some(Ch06.double3(rng))).take(10).myString))
+
+  println("** Exercise 6.4 **")
+  println("ints(-1)(SimpleRNG(0)) = %s".format(Ch06.ints(-1)(Ch06.SimpleRNG(0))))
+  println("ints(0)(SimpleRNG(0)) = %s".format(Ch06.ints(0)(Ch06.SimpleRNG(0))))
+  println("ints(1)(SimpleRNG(0)) = %s".format(Ch06.ints(1)(Ch06.SimpleRNG(0))))
+  println("ints(3)(SimpleRNG(0)) = %s".format(Ch06.ints(3)(Ch06.SimpleRNG(0))))
+  println("ints(10)(SimpleRNG(0)) = %s".format(Ch06.ints(10)(Ch06.SimpleRNG(0))))
+
   println("***** Done ***** ")
 
 }
