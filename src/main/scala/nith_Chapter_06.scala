@@ -71,7 +71,6 @@ object Ch06 {
   }
 
 
-  /*
 
   type Rand[+A] = RNG => (A, RNG)
 
@@ -88,18 +87,23 @@ object Ch06 {
 
 
   // 6.5 Use map to reimplement double in a more elegant way. See exercise 6.2.
+  def doubleMap: Rand[Double] = map(nonNegativeInt)(x =>0 - x.toDouble / Int.MinValue)
 
 
   // 6.6  Write the implementation of map2 based on the following signature.
   // This function takes two actions, ra and rb, and a function f for combining their results,
   // and returns a new action that combines them:
-  def map2[A,B,C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] = ???
+  def map2[A,B,C](ra: Rand[A], rb: Rand[B])(f: (A, B) =>C): Rand[C] = rng => {
+    val (a, rng2) = ra(rng)
+    val (b, rng3) = rb(rng2)
+    (f(a,b), rng3)
+  }
 
 
-  def both[A,B](ra: Rand[A], rb: Rand[B]): Rand[(A,B)] = map2(ra, rb)((_, _))
+  def both[A,B](ra: Rand[A], rb: Rand[B]): Rand[(A,B)] = map2(ra, rb)( (_,_))
 
-  val randIntDouble: Rand[(Int, Double)] = both(int, double)
-  val randDoubleInt: Rand[(Double, Int)] = both(double, int)
+  val randIntDouble: Rand[(Int, Double)] = both(int,double)
+  val randDoubleInt: Rand[(Double, Int)] = both(double,int)
 
 
   // 6.7 Hard: If you can combine two RNG transitions, you should be able to combine a whole list of them.
@@ -107,26 +111,30 @@ object Ch06 {
   // Use it to reimplement the ints function you wrote before. For the latter, you can use the standard library
   // function List.fill(n)(x) to make a list with x repeated n times.
 
-  def sequence[A](fs: List[Rand[A]]): Rand[List[A]] = ???
+  //  We set sequence[A](Nil) = rng => (Nil,rng)
+ def sequence[A](fs: List[Rand[A]]): Rand[List[A]]
+    = List.foldLeft[Rand[A],Rand[List[A]]](fs, rng => (List.Nil,rng))(ra => rla => map2(ra,rla)(List.Cons(_,_)))
+
+  def intsSequence(count: Int): Rand[List[Int]] = sequence[Int](List.fill[Rand[Int]](count)(int))
+
+  /*
+    def nonNegativeLessThan(n: Int): Rand[Int] = { rng => val (i, rng2) = nonNegativeInt(rng)
+      val mod = i % n
+      if (i + (n-1) - mod >= 0)
+        (mod, rng2)
+      else nonNegativeLessThan(n)(rng)
+    }
+
+    // 6.8 Implement flatMap, and then use it to implement nonNegativeLessThan.
+    def flatMap[A,B](f: Rand[A])(g: A => Rand[B]): Rand[B] = ???
+
+    // 6.9 Reimplement map and map2 in terms of flatMap. The fact that this is possible is what
+    // we’re referring to when we say that flatMap is more powerful than map and map2.
 
 
-  def nonNegativeLessThan(n: Int): Rand[Int] = { rng => val (i, rng2) = nonNegativeInt(rng)
-    val mod = i % n
-    if (i + (n-1) - mod >= 0)
-      (mod, rng2)
-    else nonNegativeLessThan(n)(rng)
-  }
+    // TODO add missing exercices
 
-  // 6.8 Implement flatMap, and then use it to implement nonNegativeLessThan.
-  def flatMap[A,B](f: Rand[A])(g: A => Rand[B]): Rand[B] = ???
-
-  // 6.9 Reimplement map and map2 in terms of flatMap. The fact that this is possible is what
-  // we’re referring to when we say that flatMap is more powerful than map and map2.
-
-
-  // TODO add missing exercices
-
-  */
+    */
 }
 
 
@@ -170,6 +178,20 @@ object nith_Chapter_06 extends App {
   println("ints(3)(SimpleRNG(0)) = %s".format(Ch06.ints(3)(Ch06.SimpleRNG(0))))
   println("ints(10)(SimpleRNG(0)) = %s".format(Ch06.ints(10)(Ch06.SimpleRNG(0))))
 
+  println("** Exercise 6.5 **")
+  println("unfold(SimpleRNG(0))(rng => Some(double(rng))).take(20)\n  = %s"
+    .format(Ch05.unfold[Double, Ch06.RNG](Ch06.SimpleRNG(0))(rng => Some(Ch06.double(rng))).take(10).myString))
+  println("unfold2(SimpleRNG(0))(3)(Ch06.doubleMap)\n  = %s"
+    .format(Ch05.unfold2[Double, Ch06.RNG](10)(Ch06.SimpleRNG(0))(Ch06.doubleMap).myString))
+
+  println("** Exercise 6.7 **")
+  println("intsSequence(-1)(SimpleRNG(0)) = %s".format(Ch06.intsSequence(-1)(Ch06.SimpleRNG(0))))
+  println("intsSequence(0)(SimpleRNG(0)) = %s".format(Ch06.intsSequence(0)(Ch06.SimpleRNG(0))))
+  println("intsSequence(1)(SimpleRNG(0)) = %s".format(Ch06.intsSequence(1)(Ch06.SimpleRNG(0))))
+  println("intsSequence(3)(SimpleRNG(0)) = %s".format(Ch06.intsSequence(3)(Ch06.SimpleRNG(0))))
+  println("intsSequence(10)(SimpleRNG(0)) = %s".format(Ch06.intsSequence(10)(Ch06.SimpleRNG(0))))
+
+  
   println("***** Done ***** ")
 
 }
