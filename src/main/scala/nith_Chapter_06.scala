@@ -90,7 +90,7 @@ object Ch06 {
 
 
   // 6.6  Write the implementation of map2 based on the following signature.
-  // This function takes two actions, ra and bState, and a function f for combining their results,
+  // This function takes two actions, ra and bRand, and a function f for combining their results,
   // and returns a new action that combines them:
   final def map2[A, B, C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] = rng => {
     val (a, rng2) = ra(rng)
@@ -130,6 +130,12 @@ object Ch06 {
     g(a)(rng2)
   }
 
+  final def zip[A,B](aRand: Rand[A])(bRand: Rand[B]): Rand[(A, B)] = rng => {
+    val (a, rng2): (A, RNG) = aRand(rng)
+    val (b, rng3): (B, RNG) = bRand(rng2)
+    ((a, b), rng3)
+  }
+
   final def nonNegativeLessThanFlatMap(n: Int): Rand[Int]
   = flatMap[Int, Int](nonNegativeInt)(i => rng => {
     val mod = i % n
@@ -138,14 +144,16 @@ object Ch06 {
 
   // 6.9 Reimplement map and map2 in terms of flatMap. The fact that this is possible is what
   // we’re referring to when we say that flatMap is more powerful than map and map2.
-  final def map2Flat[A, B, C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C]
-  = flatMap[(A, B), C](rng => {
-    val (a, rng2) = ra(rng)
-    val (b, rng3) = rb(rng2)
-    ((a, b), rng3)
-  })(ab => ab match {
-    case (a, b) => (r => (f(a, b), r))
-  })
+  final def map2Flat[A, B, C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C]  = {
+    val abRand: Rand[(A, B)] = zip(ra)(rb)
+    flatMap[(A,B),C](abRand)((ab => ab match {
+      case (a, b)
+      => rng => {
+        val ((a2, b2), state2): ((A, B), RNG) = abRand(rng)
+        (f(a2, b2), state2)
+      }
+    }))
+  }
 
   final def sequenceFlat[A](fs: List[Rand[A]]): Rand[List[A]]
   = List.foldLeft[Rand[A], Rand[List[A]]](fs, rng => (List.Nil, rng))(ra => rla => map2Flat(ra, rla)(List.Cons(_, _)))
@@ -170,20 +178,28 @@ object Ch06 {
     }
 
     final def zip[B](bState: State[S, B]): State[S, (A, B)]
-    // QUESTION: Why does IntelliJ complain about the type of bState.run(state)._1 ??? The compiler does not !
-    = State[S, (A, B)](state => ((this.run(state)._1, bState.run(state)._1), this.run(state)._2))
+    // QUESTION: Why does IntelliJ complain about the type of bRand.run(state)._1 ??? The compiler does not !
+    //    = State[S, (A, B)](state => ((this.run(state)._1, bRand.run(state)._1), this.run(state)._2))
+    = State[S, (A, B)](state => {
+      val (a, state2): (A, S) = this.run(state)
+      val (b, state3): (B, S) = bState.run(state2)
+      ((a, b), state3)
+    })
 
     final def map2[B, C](bState: State[S, B])(f: (A, B) => C): State[S, C]
     = {
       val abState: State[S, (A, B)] = this.zip(bState)
-      abState.flatMap[C]((ab => ab match {case (a, b)
-      => State[S, C](state => { //println("...map2: ab="+ab+"  f(a, b)="+f(a, b)+"  state="+state)
-          val ((a2,b2),state2): ((A, B),S) = abState.run(state)
-          (f(a2, b2), state)
+      abState.flatMap[C]((ab => ab match {
+        case (a, b)
+        => State[S, C](state => {
+          //println("...map2: ab="+ab+"  f(a, b)="+f(a, b)+"  state="+state)
+          val ((a2, b2), state2): ((A, B), S) = abState.run(state)
+          (f(a2, b2), state2)
         })
-//        State[S, C](state => (f(a, b), state))
       }))
     }
+
+    final def map[B](f: A => B): State[S,B] = map2[A,B](this)((a1, a2) => f(a1))
 
   }
 
@@ -203,21 +219,26 @@ object Ch06 {
     else this.nonNegativeLessThanState(n)
   })
 
-  final def sequence[S,A](stateList: List[State[S,A]]): State[S,List[A]]
-  = List.foldLeft[State[S,A], State[S,List[A]]](stateList, State[S,List[A]](state => (List.Nil, state)))(aState => aListState => aState.map2(aListState)(List.Cons(_, _)))
+  final def sequence[S, A](stateList: List[State[S, A]]): State[S, List[A]]
+  = List.foldLeft[State[S, A], State[S, List[A]]](stateList, State[S, List[A]](state => (List.Nil, state)))(aState => aListState => aState.map2(aListState)(List.Cons(_, _)))
 
-  final def intsSequenceState(count: Int): State[RNG,List[Int]] = sequence[RNG,Int](List.fill[RandState[Int]](count)(intRandState))
+  final def intsSequenceState(count: Int): State[RNG, List[Int]] = sequence[RNG, Int](List.fill[RandState[Int]](count)(intRandState))
 
-  
+  final def unitState[S,A](a: A): State[S,A] = State[S,A](state => (a, state))
 
-
+  final def doubleState: State[RNG,Double] = nonNegativeIntRandState.map(x => 0 - x.toDouble / Int.MinValue)
 
 }
 
 
 object nith_Chapter_06 extends App {
-  
+
   val rng0: Ch06.RNG = Ch06.SimpleRNG(0)
+  val simpleRNGiterator: Int => Ch05.Stream[(Int, Ch06.RNG)] = count => Ch05.unfold2[(Int, Ch06.RNG), Ch06.RNG](count)(rng0)(rng => {
+    val (n,rng2) = rng.nextInt
+    ((n,rng2),rng2)
+  })
+
   val SimpleRNGstream: (Long => Ch05.Stream[Int]) = fstSeed => Ch05.unfold[Int, Ch06.RNG](Ch06.SimpleRNG(fstSeed))(rng => Some(rng.nextInt))
 
   println("****** Chapter_06 ******")
@@ -226,6 +247,7 @@ object nith_Chapter_06 extends App {
   println("Long.MinValue = %s".format(Long.MinValue))
   println("Long.MaxValue =  %s".format(Long.MaxValue))
   println("rng0.nextInt = %s".format(rng0.nextInt))
+  println("simpleRNGiterator(8) = %s".format(simpleRNGiterator(8).myString))
   println("SimpleRNG(Long.MinValue).nextInt = %s".format(Ch06.SimpleRNG(Long.MinValue).nextInt))
   println("SimpleRNG(-1).nextInt = %s".format(Ch06.SimpleRNG(-1).nextInt))
   println("SimpleRNG(Long.MaxValue).nextInt = %s".format(Ch06.SimpleRNG(Long.MaxValue).nextInt))
@@ -277,10 +299,6 @@ object nith_Chapter_06 extends App {
 
   println("** Exercise 6.9 **")
   println("intsSequenceFlat(10)(rng0) = %s".format(Ch06.intsSequenceFlat(10)(rng0)))
-  println("unfold2(rng0)(3)(doubleMap)\n  = %s"
-    .format(Ch05.unfold2[Double, Ch06.RNG](10)(rng0)(Ch06.doubleMap).myString))
-  println("unfold2(rng0)(3)(doubleMapFlat)\n  = %s"
-    .format(Ch05.unfold2[Double, Ch06.RNG](10)(rng0)(Ch06.doubleMapFlat).myString))
 
   println("** Exercise 6.10 **")
   println("unfold2(10)(rng0)(rng => nonNegativeInt(rng))          = %s"
@@ -296,19 +314,30 @@ object nith_Chapter_06 extends App {
   println("unfold2(20)(rng0)(rng => nonNegativeLessThanState(20).run(rng)) = %s"
     .format(Ch05.unfold2[Int, Ch06.RNG](20)(rng0)(rng => Ch06.nonNegativeLessThanState(20).run(rng)).myString))
   println("unfold2(10)(rng0)(rng => nonNegativeIntRandState.zip(doubleRandState).run(rng))) = %s"
-    .format(Ch05.unfold2[(Int,Double), Ch06.RNG](10)(rng0)(rng => Ch06.nonNegativeIntRandState.zip(Ch06.doubleRandState).run(rng)).myString))
+    .format(Ch05.unfold2[(Int, Double), Ch06.RNG](10)(rng0)(rng => Ch06.nonNegativeIntRandState.zip(Ch06.doubleRandState).run(rng)).myString))
 
-  println("intsSequenceFlat(1)(rng0)      = %s".format(Ch06.intsSequenceFlat(1)(rng0)))
-  println("intsSequenceState(1).run(rng0) = %s".format(Ch06.intsSequenceState(1).run(rng0)))
-  println("\nintsSequenceFlat(2)(rng0)    = %s".format(Ch06.intsSequenceFlat(2)(rng0)))
-  println("intsSequenceState(2).run(rng0) = %s".format(Ch06.intsSequenceState(2).run(rng0)))
-  println("\nintsSequenceFlat(3)(rng0)    = %s".format(Ch06.intsSequenceFlat(3)(rng0)))
-  println("intsSequenceState(3).run(rng0) = %s".format(Ch06.intsSequenceState(3).run(rng0)))
-  println("\nintsSequenceFlat(4)(rng0)    = %s".format(Ch06.intsSequenceFlat(4)(rng0)))
-  println("intsSequenceState(4).run(rng0) = %s".format(Ch06.intsSequenceState(4).run(rng0)))
-//  println("intsSequenceFlat(10)(rng0)      = %s".format(Ch06.intsSequenceFlat(10)(rng0)))
-//  println("intsSequenceState(10).run(rng0) = %s".format(Ch06.intsSequenceState(10).run(rng0)))
 
+
+  println("\nsimpleRNGiterator(16) = %s".format(simpleRNGiterator(16).myString))
+  println("\nintsSequenceFlat(0)(rng0)       = %s".format(Ch06.intsSequenceFlat(0)(rng0)))
+  println("intsSequenceState(0).run(rng0)  = %s".format(Ch06.intsSequenceState(0).run(rng0)))
+  println("\nintsSequenceFlat(1)(rng0)       = %s".format(Ch06.intsSequenceFlat(1)(rng0)))
+  println("intsSequenceState(1).run(rng0)  = %s".format(Ch06.intsSequenceState(1).run(rng0)))
+  println("\nintsSequenceFlat(2)(rng0)       = %s".format(Ch06.intsSequenceFlat(2)(rng0)))
+  println("intsSequenceState(2).run(rng0)  = %s".format(Ch06.intsSequenceState(2).run(rng0)))
+  println("\nintsSequenceFlat(3)(rng0)       = %s".format(Ch06.intsSequenceFlat(3)(rng0)))
+  println("intsSequenceState(3).run(rng0)  = %s".format(Ch06.intsSequenceState(3).run(rng0)))
+  println("\nintsSequenceFlat(4)(rng0)       = %s".format(Ch06.intsSequenceFlat(4)(rng0)))
+  println("intsSequenceState(4).run(rng0)  = %s".format(Ch06.intsSequenceState(4).run(rng0)))
+  println("intsSequenceFlat(10)(rng0)      = %s".format(Ch06.intsSequenceFlat(10)(rng0)))
+  println("intsSequenceState(10).run(rng0) = %s".format(Ch06.intsSequenceState(10).run(rng0)))
+
+  println("\nunfold2(rng0)(3)(doubleMap)\n  = %s"
+    .format(Ch05.unfold2[Double, Ch06.RNG](16)(rng0)(Ch06.doubleMap).myString))
+  println("unfold2(rng0)(3)(doubleState)\n  = %s"
+    .format(Ch05.unfold2[Double, Ch06.RNG](8)(rng0)(rng=>Ch06.doubleState.run(rng)).myString))
+
+  println("** Exercise 6.11 **")
   println("!!! NOT FINISHED !!!")
   println("***** Done ***** ")
 
