@@ -130,7 +130,7 @@ object Ch06 {
     g(a)(rng2)
   }
 
-  final def zip[A,B](aRand: Rand[A])(bRand: Rand[B]): Rand[(A, B)] = rng => {
+  final def zip[A, B](aRand: Rand[A])(bRand: Rand[B]): Rand[(A, B)] = rng => {
     val (a, rng2): (A, RNG) = aRand(rng)
     val (b, rng3): (B, RNG) = bRand(rng2)
     ((a, b), rng3)
@@ -144,9 +144,9 @@ object Ch06 {
 
   // 6.9 Reimplement map and map2 in terms of flatMap. The fact that this is possible is what
   // we’re referring to when we say that flatMap is more powerful than map and map2.
-  final def map2Flat[A, B, C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C]  = {
+  final def map2Flat[A, B, C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] = {
     val abRand: Rand[(A, B)] = zip(ra)(rb)
-    flatMap[(A,B),C](abRand)((ab => ab match {
+    flatMap[(A, B), C](abRand)((ab => ab match {
       case (a, b)
       => rng => {
         val ((a2, b2), state2): ((A, B), RNG) = abRand(rng)
@@ -166,6 +166,11 @@ object Ch06 {
 
 
   // Chapter 6.5 A general state action data type
+
+  //  EXERCISE 6.10
+  //  Generalize the functions unit, map, map2, flatMap, and sequence. Add them as methods
+  //  on the State case class where possible. Otherwise you should put them in a State
+  //  companion object.
 
   case class State[S, +A](run: S => (A, S)) {
     final def flatMap[B](g: A => State[S, B]): State[S, B] = {
@@ -199,7 +204,7 @@ object Ch06 {
       }))
     }
 
-    final def map[B](f: A => B): State[S,B] = map2[A,B](this)((a1, a2) => f(a1))
+    final def map[B](f: A => B): State[S, B] = map2[A, B](this)((a1, a2) => f(a1))
 
   }
 
@@ -224,9 +229,31 @@ object Ch06 {
 
   final def intsSequenceState(count: Int): State[RNG, List[Int]] = sequence[RNG, Int](List.fill[RandState[Int]](count)(intRandState))
 
-  final def unitState[S,A](a: A): State[S,A] = State[S,A](state => (a, state))
+  final def unitState[S, A](a: A): State[S, A] = State[S, A](state => (a, state))
 
-  final def doubleState: State[RNG,Double] = nonNegativeIntRandState.map(x => 0 - x.toDouble / Int.MinValue)
+  final def doubleState: State[RNG, Double] = nonNegativeIntRandState.map(x => 0 - x.toDouble / Int.MinValue)
+
+
+  //  6.6 Purely functional imperative programming
+  //
+  //  EXERCISE 6.11
+  //  Hard: To gain experience with the use of State, implement a finite state automaton
+  //  that models a simple candy dispenser. The machine has two types of input: you can
+  //  insert a coin, or you can turn the knob to dispense candy. It can be in one of two
+  //  states: locked or unlocked. It also tracks how many candies are left and how many
+  //  coins it contains.
+  sealed trait Input
+
+  case object Coin extends Input
+
+  case object Turn extends Input
+
+  case class Machine(locked: Boolean, candies: Int, coins: Int)
+
+  final def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] = {
+    def processInput(mac:Machine) : ((Int, Int), Machine) = ???
+    State[Machine, (Int, Int)](processInput)
+  }
 
 }
 
@@ -235,8 +262,8 @@ object nith_Chapter_06 extends App {
 
   val rng0: Ch06.RNG = Ch06.SimpleRNG(0)
   val simpleRNGiterator: Int => Ch05.Stream[(Int, Ch06.RNG)] = count => Ch05.unfold2[(Int, Ch06.RNG), Ch06.RNG](count)(rng0)(rng => {
-    val (n,rng2) = rng.nextInt
-    ((n,rng2),rng2)
+    val (n, rng2) = rng.nextInt
+    ((n, rng2), rng2)
   })
 
   val SimpleRNGstream: (Long => Ch05.Stream[Int]) = fstSeed => Ch05.unfold[Int, Ch06.RNG](Ch06.SimpleRNG(fstSeed))(rng => Some(rng.nextInt))
@@ -335,7 +362,7 @@ object nith_Chapter_06 extends App {
   println("\nunfold2(rng0)(3)(doubleMap)\n  = %s"
     .format(Ch05.unfold2[Double, Ch06.RNG](16)(rng0)(Ch06.doubleMap).myString))
   println("unfold2(rng0)(3)(doubleState)\n  = %s"
-    .format(Ch05.unfold2[Double, Ch06.RNG](8)(rng0)(rng=>Ch06.doubleState.run(rng)).myString))
+    .format(Ch05.unfold2[Double, Ch06.RNG](8)(rng0)(rng => Ch06.doubleState.run(rng)).myString))
 
   println("** Exercise 6.11 **")
   println("!!! NOT FINISHED !!!")
