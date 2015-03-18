@@ -251,8 +251,18 @@ object Ch06 {
   case class Machine(locked: Boolean, candies: Int, coins: Int)
 
   final def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] = {
-    def processInput(mac:Machine) : ((Int, Int), Machine) = ???
-    State[Machine, (Int, Int)](processInput)
+    def processInput(inp: List[Input])(mac: Machine): ((Int, Int), Machine) = {
+      val doNothingResult: ((Int, Int), Machine) = ((mac.candies, mac.coins), mac)
+      if (mac.candies < 1) doNothingResult
+      else {
+        inp match {
+          case List.Cons(inp, inpList) => if (mac.locked == (inp==Turn))processInput(inpList)(mac)
+          else if (inp==Turn) processInput(inpList)(Machine(!mac.locked,mac.candies-1,mac.coins)) else processInput(inpList)(Machine(!mac.locked,mac.candies, mac.coins+1))
+          case _ => doNothingResult
+        }
+      }
+    }
+    State[Machine, (Int, Int)](processInput(inputs))
   }
 
 }
@@ -359,12 +369,27 @@ object nith_Chapter_06 extends App {
   println("intsSequenceFlat(10)(rng0)      = %s".format(Ch06.intsSequenceFlat(10)(rng0)))
   println("intsSequenceState(10).run(rng0) = %s".format(Ch06.intsSequenceState(10).run(rng0)))
 
-  println("\nunfold2(rng0)(3)(doubleMap)\n  = %s"
+  println("\nunfold2(rng0)(3)(doubleMap) = %s"
     .format(Ch05.unfold2[Double, Ch06.RNG](16)(rng0)(Ch06.doubleMap).myString))
-  println("unfold2(rng0)(3)(doubleState)\n  = %s"
+  println("unfold2(rng0)(3)(doubleState) = %s"
     .format(Ch05.unfold2[Double, Ch06.RNG](8)(rng0)(rng => Ch06.doubleState.run(rng)).myString))
 
   println("** Exercise 6.11 **")
+  println("simulateMachine().run(Machine(true,1,1)) = %s".format(Ch06.simulateMachine(List.Nil).run(Ch06.Machine(true, 1, 1))))
+  println("simulateMachine(Coin,Turn,Turn,Turn,Turn,Coin,Turn).run(Machine(true,0,42)) = %s"
+    .format(Ch06.simulateMachine(List[Ch06.Input](Ch06.Coin,Ch06.Turn,Ch06.Turn,Ch06.Turn,Ch06.Turn,Ch06.Coin,Ch06.Turn)).run(Ch06.Machine(true, 0, 42))))
+  println("simulateMachine(Coin).run(Machine(false,24,42)) = %s".format(Ch06.simulateMachine(List[Ch06.Input](Ch06.Coin)).run(Ch06.Machine(false,24,42))))
+  println("simulateMachine(Turn).run(Machine(true,24,42)) = %s".format(Ch06.simulateMachine(List[Ch06.Input](Ch06.Turn)).run(Ch06.Machine(true,24,42))))
+  println("simulateMachine(Coin,Turn).run(Machine(true,3,42)) = %s"
+    .format(Ch06.simulateMachine(List[Ch06.Input](Ch06.Coin,Ch06.Turn)).run(Ch06.Machine(true, 3, 42))))
+  println("simulateMachine(Coin,Turn,Turn,Turn,Turn,Coin,Turn).run(Machine(true,24,42)) = %s"
+    .format(Ch06.simulateMachine(List[Ch06.Input](Ch06.Coin,Ch06.Turn,Ch06.Turn,Ch06.Turn,Ch06.Turn,Ch06.Coin,Ch06.Turn)).run(Ch06.Machine(true, 24, 42))))
+  println("simulateMachine(Turn,Coin,Turn,Turn,Coin,Turn,Turn,Coin,Turn).run(Machine(true,24,42)) = %s"
+    .format(Ch06.simulateMachine(List[Ch06.Input](Ch06.Turn,Ch06.Coin,Ch06.Turn,Ch06.Turn,Ch06.Coin,Ch06.Turn,Ch06.Turn,Ch06.Coin,Ch06.Turn)).run(Ch06.Machine(true, 24, 42))))
+  println("simulateMachine(Coin,Coin,Coin,Coin,Coin,Coin,Coin,Coin,Coin).run(Machine(true,24,42)) = %s"
+    .format(Ch06.simulateMachine(List[Ch06.Input](Ch06.Coin,Ch06.Coin,Ch06.Coin,Ch06.Coin,Ch06.Coin,Ch06.Coin,Ch06.Coin,Ch06.Coin,Ch06.Coin)).run(Ch06.Machine(true, 24, 42))))
+  println("simulateMachine(Turn,Turn,Turn,Turn,Turn,Turn,Turn,Turn,Turn).run(Machine(true,24,42)) = %s"
+    .format(Ch06.simulateMachine(List[Ch06.Input](Ch06.Turn,Ch06.Turn,Ch06.Turn,Ch06.Turn,Ch06.Turn,Ch06.Turn,Ch06.Turn,Ch06.Turn,Ch06.Turn)).run(Ch06.Machine(true, 24, 42))))
   println("!!! NOT FINISHED !!!")
   println("***** Done ***** ")
 
