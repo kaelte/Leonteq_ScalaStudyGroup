@@ -1,5 +1,6 @@
 import java.util.Calendar
 import java.util.concurrent._
+import java.util.concurrent.atomic.AtomicInteger
 
 object Ch07 {
 
@@ -138,7 +139,8 @@ trait Future[A] {
       // 7.4 This API already enables a rich set of operations. Here’s a simple example: using lazyUnit,
       // write a function to convert any function A => B to one that evaluates its result asynchronously.
 
-      def asyncF[A, B](f: A => B): A => Par[B] = ???
+      def lazyUnit[A](a: => A): Par[A] = fork(unit(a))
+      def asyncF[A, B](f: A => B): A => Par[B] = a => lazyUnit(f(a))
 
       // 7.5 Hard: Write this function, called sequence. No additional primitives are required. Do not call run.
       def sequence[A](ps: List[Par[A]]): Par[List[A]] = ???
@@ -153,15 +155,26 @@ trait Future[A] {
 
 object nith_Chapter_07 extends App {
 
+  val log: Any => Unit = x => println(Calendar.getInstance().getTime() + "  " + x.toString)
+  val exceptionMsg : Exception => Any => String  = e => x => Calendar.getInstance().getTime() + "   " + x + " = " + e
+
   lazy val intSign: (Boolean, Int) => Int = (p, n) => if (p) n else 0 - n
 
   // It would be nice if the red book did say how to create an ExecutorService.
   // I found this line in the comment of Executors.java but can speculate only
   // what it does.
-  lazy val es: ExecutorService = Executors.newFixedThreadPool(4)
+  lazy val es: ExecutorService = Executors.newFixedThreadPool(4, new ThreadFactory {
+    val counter = new AtomicInteger(0)
+    def newThread(r: Runnable): Thread = {
+      val t = new Thread(r,s"PAR-thread-${counter.getAndIncrement}")
+      t.setDaemon(true)
+      t
+    }
+  })
 
   lazy val ones: Ch05.Stream[Int] = Ch05.Stream.cons(1, ones)
-  lazy val nonTerminatingBool: Boolean = ones.exists(_ == 2)
+  val isThereTwo: Ch05.Stream[Int] => Boolean = _.exists(_ == 2)
+  lazy val nonTerminatingBool = isThereTwo(ones)
   lazy val two: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(2)
   lazy val three: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(3)
   lazy val nonTerminatingCall: Callable[Boolean] = new Callable[Boolean] {
@@ -175,16 +188,22 @@ object nith_Chapter_07 extends App {
   println("three(es).get = " + three(es).get)
 
   println("\n** Exercise 7.3 **")
-  println("map2Timeout(two,three)(_ * _)(es).get = " + Ch07.Phase3.Par.map2Timeout(two, three)(_ * _)(es).get)
-  println("map2Timeout(two,three)(_ * _)(es).get(1,TimeUnit.SECONDS) = " + Ch07.Phase3.Par.map2Timeout(two, three)(_ * _)(es).get(1, TimeUnit.SECONDS))
-  println(Calendar.getInstance().getTime())
+  log("map2Timeout(two,three)(_ * _)(es).get = " + Ch07.Phase3.Par.map2Timeout(two, three)(_ * _)(es).get)
+  log("map2Timeout(two,three)(_ * _)(es).get(1,TimeUnit.SECONDS) = " + Ch07.Phase3.Par.map2Timeout(two, three)(_ * _)(es).get(1, TimeUnit.SECONDS))
   try {
-    println(Ch07.Phase3.Par.map2Timeout(infinitePar, three)(intSign)(es).get(2, TimeUnit.SECONDS))
-    println("this line is never executed")
+    log(Ch07.Phase3.Par.map2Timeout(infinitePar, three)(intSign)(es).get(2, TimeUnit.SECONDS))
   } catch {
-    case e: Exception => println(Calendar.getInstance().getTime() + "   map2Timeout(infinitePar,three)(_ * _)(es).get(2,TimeUnit.SECONDS) = " + e)
+    case e: Exception => log(exceptionMsg(e)("map2Timeout(infinitePar, three)(intSign)(es).get(2, TimeUnit.SECONDS)"))
   }
 
-  println("*** Not finished yet ***")
+  println("\n** Exercise 7.4 **")
+  log(Calendar.getInstance().getTime())
+  try {
+    log(Ch07.Phase3.Par.asyncF(isThereTwo)(ones)(es).get(2, TimeUnit.SECONDS))
+  } catch {
+    case e: Exception => log(exceptionMsg(e)("asyncF(isThereTwo)(ones)(es).get(2, TimeUnit.SECONDS)"))
+  }
+
+  log("*** Not finished yet ***")
 
 }
