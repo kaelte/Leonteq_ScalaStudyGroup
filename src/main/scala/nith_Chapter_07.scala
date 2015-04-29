@@ -116,7 +116,7 @@ trait Future[A] {
         private def compute(timeoutMs: Long): C = cache match {
           case Some(c) => c
           case None =>
-            println("...compute: timeoutMs=" + timeoutMs)
+            //            println("...compute: timeoutMs=" + timeoutMs)
             val start = System.currentTimeMillis
             val ar = a.get(timeoutMs, TimeUnit.MILLISECONDS)
             val stop = System.currentTimeMillis;
@@ -140,11 +140,13 @@ trait Future[A] {
       // write a function to convert any function A => B to one that evaluates its result asynchronously.
 
       def lazyUnit[A](a: => A): Par[A] = fork(unit(a))
+
       def asyncF[A, B](f: A => B): A => Par[B] = a => lazyUnit(f(a))
 
       // 7.5 Hard: Write this function, called sequence. No additional primitives are required. Do not call run.
-      def sequence[A](ps: List[Par[A]]): Par[List[A]] = ???
-
+      def nilPar[A]: Par[List[A]] = unit(List.Nil)
+      def consPar[A](aPar :Par[A])(asPar: => Par[List[A]]) : Par[List[A]] =  exi => UnitFuture(List.Cons(aPar(exi).get,asPar(exi).get))
+      def sequence[A](ps: List[Par[A]]): Par[List[A]] = List.foldLeft[Par[A],Par[List[A]]](List.reverse(ps),nilPar)(consPar)
 
     }
 
@@ -156,53 +158,61 @@ trait Future[A] {
 object nith_Chapter_07 extends App {
 
   val log: Any => Unit = x => println(Calendar.getInstance().getTime() + "  " + x.toString)
-  val exceptionMsg : Exception => Any => String  = e => x => Calendar.getInstance().getTime() + "   " + x + " = " + e
-
+  val logException: Exception => Any => Unit = e => x => println(Calendar.getInstance().getTime() + "  " + x + " = " + e)
   lazy val intSign: (Boolean, Int) => Int = (p, n) => if (p) n else 0 - n
 
   // It would be nice if the red book did say how to create an ExecutorService.
   // I found this line in the comment of Executors.java but can speculate only
   // what it does.
-  lazy val es: ExecutorService = Executors.newFixedThreadPool(4, new ThreadFactory {
+
+  lazy val esDaemon: ExecutorService = Executors.newFixedThreadPool(4, new ThreadFactory {
     val counter = new AtomicInteger(0)
+
     def newThread(r: Runnable): Thread = {
-      val t = new Thread(r,s"PAR-thread-${counter.getAndIncrement}")
+      val t = new Thread(r, s"PAR-thread-${counter.getAndIncrement}")
       t.setDaemon(true)
       t
     }
   })
+  lazy val es: ExecutorService = Executors.newFixedThreadPool(4)
 
-  lazy val ones: Ch05.Stream[Int] = Ch05.Stream.cons(1, ones)
+  lazy val oneStream: Ch05.Stream[Int] = Ch05.Stream.cons(1, oneStream)
   val isThereTwo: Ch05.Stream[Int] => Boolean = _.exists(_ == 2)
-  lazy val nonTerminatingBool = isThereTwo(ones)
-  lazy val two: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(2)
-  lazy val three: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(3)
+  lazy val nonTerminatingBool = isThereTwo(oneStream)
+  lazy val twoPar: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(2)
+  lazy val threePar: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(3)
   lazy val nonTerminatingCall: Callable[Boolean] = new Callable[Boolean] {
     def call = nonTerminatingBool
   }
   lazy val infinitePar: Ch07.Phase3.Par[Boolean] = execService => execService.submit[Boolean](nonTerminatingCall)
 
   println("****** Chapter_07 ******")
-  println("Long.MaxValue = %s".format(Long.MaxValue))
-  println("two(es).get   = " + two(es).get)
-  println("three(es).get = " + three(es).get)
+  println("Long.MaxValue    = %s".format(Long.MaxValue))
+  println("twoPar(es).get   = " + twoPar(es).get)
+  println("threePar(es).get = " + threePar(es).get)
+  println("intSign: (Boolean, Int) => Int   =   (p, n) => if (p) n else 0 - n")
 
   println("\n** Exercise 7.3 **")
-  log("map2Timeout(two,three)(_ * _)(es).get = " + Ch07.Phase3.Par.map2Timeout(two, three)(_ * _)(es).get)
-  log("map2Timeout(two,three)(_ * _)(es).get(1,TimeUnit.SECONDS) = " + Ch07.Phase3.Par.map2Timeout(two, three)(_ * _)(es).get(1, TimeUnit.SECONDS))
+  log("map2Timeout(twoPar,threePar)(_ * _)(es).get = " + Ch07.Phase3.Par.map2Timeout(twoPar,threePar)(_ * _)(es).get)
+  log("map2Timeout(twoPar,threePar)(_ * _)(es).get(1,TimeUnit.SECONDS) = " + Ch07.Phase3.Par.map2Timeout(twoPar,threePar)(_ * _)(es).get(1, TimeUnit.SECONDS))
   try {
-    log(Ch07.Phase3.Par.map2Timeout(infinitePar, three)(intSign)(es).get(2, TimeUnit.SECONDS))
+    log(Ch07.Phase3.Par.map2Timeout(infinitePar,threePar)(intSign)(esDaemon).get(2,TimeUnit.SECONDS))
   } catch {
-    case e: Exception => log(exceptionMsg(e)("map2Timeout(infinitePar, three)(intSign)(es).get(2, TimeUnit.SECONDS)"))
+    case e: Exception => logException(e)("map2Timeout(infinitePar,threePar)(intSign)(esDaemon).get(2,TimeUnit.SECONDS)")
+      es.shutdownNow()
   }
 
   println("\n** Exercise 7.4 **")
-  log(Calendar.getInstance().getTime())
   try {
-    log(Ch07.Phase3.Par.asyncF(isThereTwo)(ones)(es).get(2, TimeUnit.SECONDS))
+    log(Ch07.Phase3.Par.asyncF(isThereTwo)(oneStream)(esDaemon).get(2,TimeUnit.SECONDS))
   } catch {
-    case e: Exception => log(exceptionMsg(e)("asyncF(isThereTwo)(ones)(es).get(2, TimeUnit.SECONDS)"))
+    case e: Exception => logException(e)("asyncF(isThereTwo)(oneStream)(esDaemon).get(2,TimeUnit.SECONDS)")
+      es.shutdownNow()
   }
+
+  println("\n** Exercise 7.5 **")
+  log("sequence(List.Nil)(es).get(2,TimeUnit.SECONDS) = " + Ch07.Phase3.Par.sequence(List.Nil)(es).get(2,TimeUnit.SECONDS))
+  log("sequence(List(twoPar,threePar))(es).get(2,TimeUnit.SECONDS) = " + List.myString(Ch07.Phase3.Par.sequence(List(twoPar,threePar))(es).get(2,TimeUnit.SECONDS)))
 
   log("*** Not finished yet ***")
 
