@@ -1,9 +1,11 @@
+*.pdf
+*~
+.DS_Store
 .ensime
 .ensime_cache/
 .idea/
 .idea_modules/
-target/
 project/target/
-.DS_Store
-*~
-*.pdf
+src/main/java/
+src/test/
+target/
