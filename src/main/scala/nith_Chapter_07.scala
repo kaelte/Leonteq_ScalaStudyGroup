@@ -116,7 +116,6 @@ trait Future[A] {
         private def compute(timeoutMs: Long): C = cache match {
           case Some(c) => c
           case None =>
-            //            println("...compute: timeoutMs=" + timeoutMs)
             val start = System.currentTimeMillis
             val ar = a.get(timeoutMs, TimeUnit.MILLISECONDS)
             val stop = System.currentTimeMillis;
@@ -144,76 +143,177 @@ trait Future[A] {
       def asyncF[A, B](f: A => B): A => Par[B] = a => lazyUnit(f(a))
 
       // 7.5 Hard: Write this function, called sequence. No additional primitives are required. Do not call run.
-      def nilPar[A]: Par[List[A]] = unit(List.Nil)
-      def consPar[A](aPar :Par[A])(asPar: => Par[List[A]]) : Par[List[A]] =  exi => UnitFuture(List.Cons(aPar(exi).get,asPar(exi).get))
+      def nilPar[A]: Par[List[A]] = lazyUnit(List.Nil)
+      def consPar[A](aPar:Par[A])(asPar: => Par[List[A]]):Par[List[A]] =  map2(aPar, asPar)((h,t) => List.Cons(h,t))
+      def appendPar[A](asPar1: => Par[List[A]])(asPar2: => Par[List[A]]):Par[List[A]] =  map2(asPar1, asPar2)((as1,as2) => List.append(as1,as2))
       def sequence[A](ps: List[Par[A]]): Par[List[A]] = List.foldLeft[Par[A],Par[List[A]]](List.reverse(ps),nilPar)(consPar)
+      def sequenceBal[A](aPars: List[Par[A]]): Par[List[A]] = fork { aPars match {
+        case List.Nil => nilPar
+        case List.Cons(aPar,List.Nil) => map2(aPar, nilPar)((h,t) => List.Cons(h,t))
+        case List.Cons(aPar,aParsTail) => {
+          println(Calendar.getInstance().getTime() + "...sequenceBal: aPars.length="+List.length(aPars))
+          val dimidia:(List[Par[A]],List[Par[A]]) = List.halve(aPars)
+//          map2(sequenceBal[A](dimidia._2),sequenceBal[A](dimidia._1))(List.append)
+          appendPar(sequenceBal[A](dimidia._2))(sequenceBal[A](dimidia._1))
+        }
+      }
+      }
 
+
+      // book: Once we have sequence, we can complete our implementation of parMap:
+      def parMap[A,B](as: List[A])(f: A => B): Par[List[B]] = fork {
+        val fbs: List[Par[B]] = List.map(as)(asyncF(f))
+        sequence(fbs)
+      }
+
+      def parMapBal[A,B](as: List[A])(f: A => B): Par[List[B]] = fork {
+        val fbs: List[Par[B]] = List.map(as)(asyncF(f))
+        sequenceBal(fbs)
+      }
+
+      // Two functions to filter a list with a little sleep
+      def dormi(ms:Int):Unit = {
+        println(Calendar.getInstance().getTime() + "...dormi: I am sleeping for "+ms+"ms !")
+        Thread.sleep(ms)
+        println(Calendar.getInstance().getTime() + "...dormi: I just woke up after "+ms+"ms .")
+      }
+      def filterSleep[A](as: List[A])(f: A => Boolean)(ms : Int): List[A] = {
+        println("...filterSleep: as="+List.myString(as)+" ms= "+ms)
+        dormi(ms)
+        List.reverse(List.foldLeft[A, List[A]](as, List.Nil)(a => l => if (f(a)) List.Cons(a, l) else l))
+      }
+
+      // 7.6 Implement parFilter, which filters elements of a list in parallel.
+      def parFilterSequential[A](as: List[A])(f: A => Boolean): Par[List[A]] = unit(List.filter(as)(f))
+      def parFilter[A](as: List[A])(f: A => Boolean): Par[List[A]] = {
+      val dimidia:(List[A],List[A]) = List.halve(as)
+        map2(lazyUnit(filterSleep(dimidia._2)(f)(3000)),lazyUnit(filterSleep(dimidia._1)(f)(3000)))(List.append)
+      }
+/*      def parBinOp[A](as: List[A])(bs: List[B])(f: A => Boolean): Par[List[A]] = {
+      val dimidia:(List[A],List[A]) = List.halve(as)
+        map2(lazyUnit(filterSleep(dimidia._2)(f)(3000)),lazyUnit(filterSleep(dimidia._1)(f)(3000)))(List.append)
+      }*/
     }
 
   }
+
 
 }
 
 
 object nith_Chapter_07 extends App {
 
-  val log: Any => Unit = x => println(Calendar.getInstance().getTime() + "  " + x.toString)
-  val logException: Exception => Any => Unit = e => x => println(Calendar.getInstance().getTime() + "  " + x + " = " + e)
+  val addTimeStamp: String => String = str => Calendar.getInstance().getTime() + "  " + str
+  val log: Any => Unit = x => println(addTimeStamp(x.toString))
+  val logException: Exception => ExecutorService => Any => Unit = except => execService => x => {
+    System.err.println(addTimeStamp(x.toString + " = " + except))
+  }
   lazy val intSign: (Boolean, Int) => Int = (p, n) => if (p) n else 0 - n
 
   // It would be nice if the red book did say how to create an ExecutorService.
   // I found this line in the comment of Executors.java but can speculate only
   // what it does.
 
-  lazy val esDaemon: ExecutorService = Executors.newFixedThreadPool(4, new ThreadFactory {
+  // Unser Exekutierer
+  val numThreads:Int = 5
+  val es1: ExecutorService = Executors.newFixedThreadPool(numThreads,new ThreadFactory {
     val counter = new AtomicInteger(0)
-
     def newThread(r: Runnable): Thread = {
       val t = new Thread(r, s"PAR-thread-${counter.getAndIncrement}")
       t.setDaemon(true)
       t
     }
   })
-  lazy val es: ExecutorService = Executors.newFixedThreadPool(4)
+  val es2: ExecutorService = Executors.newFixedThreadPool(numThreads,new ThreadFactory {
+    val counter = new AtomicInteger(0)
+    def newThread(r: Runnable): Thread = {
+      val t = new Thread(r, s"PAR-thread-${counter.getAndIncrement}")
+      t.setDaemon(true)
+      t
+    }
+  })
+  val esUnlimited: ExecutorService = Executors.newCachedThreadPool(new ThreadFactory {
+    val counter = new AtomicInteger(0)
+    def newThread(r: Runnable): Thread = {
+      val t = new Thread(r, s"PAR-thread-${counter.getAndIncrement}")
+      t.setDaemon(true)
+      t
+    }
+  })
+  val shutExecService: ExecutorService => Unit = execService => {
+    log("Shutting down now executor service\n"+execService.toString)
+    log(execService.shutdown())
+    log(execService.shutdownNow())
+    if (!execService.awaitTermination(8, TimeUnit.SECONDS))
+      System.err.println(addTimeStamp("Executor Service did not terminate \n"+execService.toString))
+    else log("Executor terminated.\n"+execService.toString)
+  }
 
+  // Lists
+  val intList: Int => Int => List[Int] = start => card => if (card<1) List.Nil else List.Cons(start,intList(start+1)(card-1))
+  val intListList: Int => Int => List[List[Int]] = start => rowCard => if (rowCard<1) List() else List.Cons(intList(start)(rowCard),intListList(start+rowCard)(rowCard-1))
+  val filterForEven: List[Int] => List[Int] = ints => Ch07.Phase3.Par.filterSleep(ints)(_%2==0)(3000)
+
+  // Streams
   lazy val oneStream: Ch05.Stream[Int] = Ch05.Stream.cons(1, oneStream)
   val isThereTwo: Ch05.Stream[Int] => Boolean = _.exists(_ == 2)
   lazy val nonTerminatingBool = isThereTwo(oneStream)
-  lazy val twoPar: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(2)
-  lazy val threePar: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(3)
   lazy val nonTerminatingCall: Callable[Boolean] = new Callable[Boolean] {
     def call = nonTerminatingBool
   }
+  // Pars
+  lazy val twoPar: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(2)
+  lazy val threePar: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(3)
   lazy val infinitePar: Ch07.Phase3.Par[Boolean] = execService => execService.submit[Boolean](nonTerminatingCall)
 
   println("****** Chapter_07 ******")
-  println("Long.MaxValue    = %s".format(Long.MaxValue))
-  println("twoPar(es).get   = " + twoPar(es).get)
-  println("threePar(es).get = " + threePar(es).get)
+  println("Long.MaxValue     = %s".format(Long.MaxValue))
+  println("intList(4)(8)     = "+List.myString(intList(4)(8)))
+  println("intListList(4)(8) = "+List.myString(intListList(4)(8)))
+  println("twoPar(es1).get    = " + twoPar(es1).get)
+  println("threePar(es1).get  = " + threePar(es1).get)
   println("intSign: (Boolean, Int) => Int   =   (p, n) => if (p) n else 0 - n")
 
-  println("\n** Exercise 7.3 **")
-  log("map2Timeout(twoPar,threePar)(_ * _)(es).get = " + Ch07.Phase3.Par.map2Timeout(twoPar,threePar)(_ * _)(es).get)
-  log("map2Timeout(twoPar,threePar)(_ * _)(es).get(1,TimeUnit.SECONDS) = " + Ch07.Phase3.Par.map2Timeout(twoPar,threePar)(_ * _)(es).get(1, TimeUnit.SECONDS))
+
+  println("\n** Exercises 7.3 and 7.4 with timeOut exceptions **")
+  log("map2Timeout(twoPar,threePar)(_ * _)(es1).get = " + Ch07.Phase3.Par.map2Timeout(twoPar,threePar)(_ * _)(es1).get)
+  log("map2Timeout(twoPar,threePar)(_ * _)(es1).get(1,TimeUnit.SECONDS) = " + Ch07.Phase3.Par.map2Timeout(twoPar,threePar)(_ * _)(es1).get(1, TimeUnit.SECONDS))
   try {
-    log(Ch07.Phase3.Par.map2Timeout(infinitePar,threePar)(intSign)(esDaemon).get(2,TimeUnit.SECONDS))
+    log(Ch07.Phase3.Par.map2Timeout(infinitePar,threePar)(intSign)(es1).get(2,TimeUnit.SECONDS))
   } catch {
-    case e: Exception => logException(e)("map2Timeout(infinitePar,threePar)(intSign)(esDaemon).get(2,TimeUnit.SECONDS)")
-      es.shutdownNow()
+    case e: Exception => logException(e)(es1)("map2Timeout(infinitePar,threePar)(intSign)(es1).get(2,TimeUnit.SECONDS)")
+  }
+  try {
+    log(Ch07.Phase3.Par.asyncF(isThereTwo)(oneStream)(es1).get(2,TimeUnit.SECONDS))
+  } catch {
+    case e: Exception => logException(e)(es1)("asyncF(isThereTwo)(oneStream)(es1).get(2,TimeUnit.SECONDS)")
   }
 
-  println("\n** Exercise 7.4 **")
-  try {
-    log(Ch07.Phase3.Par.asyncF(isThereTwo)(oneStream)(esDaemon).get(2,TimeUnit.SECONDS))
-  } catch {
-    case e: Exception => logException(e)("asyncF(isThereTwo)(oneStream)(esDaemon).get(2,TimeUnit.SECONDS)")
-      es.shutdownNow()
-  }
 
   println("\n** Exercise 7.5 **")
-  log("sequence(List.Nil)(es).get(2,TimeUnit.SECONDS) = " + Ch07.Phase3.Par.sequence(List.Nil)(es).get(2,TimeUnit.SECONDS))
-  log("sequence(List(twoPar,threePar))(es).get(2,TimeUnit.SECONDS) = " + List.myString(Ch07.Phase3.Par.sequence(List(twoPar,threePar))(es).get(2,TimeUnit.SECONDS)))
+  log("sequence(List.Nil)(es2).get = " + Ch07.Phase3.Par.sequence(List.Nil)(es2).get)
+  log("sequence(List(twoPar,threePar))(es2).get = " + List.myString(Ch07.Phase3.Par.sequence(List(twoPar,threePar))(es2).get)+"\n")
+  log("* Let us fork 8 threads using parMap but our executor service has a pool of "+numThreads+" threads only *")
+  log("Executor Service es2="+es2+"\n")
+  log("parMap(intListList(4)(8))(filterForEven)(es2).get="+List.myString(Ch07.Phase3.Par.parMap[List[Int],List[Int]](intListList(4)(8))(filterForEven)(es2).get)+"\n")
 
-  log("*** Not finished yet ***")
+  log("intListList(4)(8) = "+List.myString(intListList(4)(8))+"\n")
 
+  log("* Let us fork 8 threads using parMapBal and the unlimited executor Executors.newCachedThreadPool *")
+  log("Executor Service esUnlimited="+esUnlimited+"\n")
+  log("parMapBal(intListList(4)(8))(filterForEven)(esUnlimited).get="+List.myString(Ch07.Phase3.Par.parMapBal[List[Int],List[Int]](intListList(4)(8))(filterForEven)(esUnlimited).get))
+
+  println("\n** Exercise 7.6 **")
+  log("parFilterSequential(List(0,1,2,3,4,5,6,7,8,9))(_%2==0)(es2).get) = " + List.myString(Ch07.Phase3.Par.parFilterSequential(List(0,1,2,3,4,5,6,7,8,9))(_%2==0)(es2).get))
+  log("parFilter(List(0,1,2,3,4,5,6,7,8,9))(n=>n%2==0)(es2).get         = " + List.myString(Ch07.Phase3.Par.parFilter(List(0,1,2,3,4,5,6,7,8,9))(n=>n%2==0)(es2).get))
+
+  
+  log("*** Not finished yet ***\n")
+  log("*** Shtting down the executor services es1, es2 and esunlimited ***\n")
+  log("Executor Service es1="+es1+"\n")
+  log("Executor Service es2="+es2+"\n")
+  log("Executor Service esUnlimited="+esUnlimited+"\n")
+  shutExecService(es1)
+  shutExecService(es2)
+  shutExecService(esUnlimited)
 }
