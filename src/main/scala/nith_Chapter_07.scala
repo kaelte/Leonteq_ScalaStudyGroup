@@ -39,26 +39,6 @@ object Ch07 {
 
     type Par[A] = ExecutorService => Future[A]
 
-    /*
-
-class ExecutorService {
-  def submit[A](a: Callable[A]): Future[A] = ???
-}
-
-
-trait Callable[A] {
-  def call: A
-}
-
-trait Future[A] {
-  def get: A
-  def get(timeout: Long, unit: TimeUnit): A
-  def cancel(evenIfRunning: Boolean): Boolean
-  def isDone: Boolean
-  def isCancelled: Boolean
-}
- */
-
     object Par {
       def unit[A](a: A): Par[A] = (es: ExecutorService) => UnitFuture(a)
 
@@ -80,7 +60,6 @@ trait Future[A] {
           val bf = b(es)
           UnitFuture(f(af.get, bf.get))
         }
-
 
       def fork[A](a: => Par[A]): Par[A] =
         es => es.submit(new Callable[A] {
@@ -139,9 +118,11 @@ trait Future[A] {
       // write a function to convert any function A => B to one that evaluates its result asynchronously.
 
       def lazyUnit[A](a: => A): Par[A] = fork(unit(a))
-
       def asyncF[A, B](f: A => B): A => Par[B] = a => lazyUnit(f(a))
 
+      // from the book
+      def map[A,B](pa: Par[A])(f: A => B): Par[B] = map2(pa, unit(()))((a,_) => f(a))
+ 
       // 7.5 Hard: Write this function, called sequence. No additional primitives are required. Do not call run.
       def nilPar[A]: Par[List[A]] = lazyUnit(List.Nil)
       def consPar[A](aPar:Par[A])(asPar: => Par[List[A]]):Par[List[A]] =  map2(aPar, asPar)((h,t) => List.Cons(h,t))
@@ -150,14 +131,12 @@ trait Future[A] {
       def sequenceBal[A](aPars: List[Par[A]]): Par[List[A]] = fork { aPars match {
         case List.Nil => nilPar
         case List.Cons(aPar,List.Nil) => map2(aPar, nilPar)((h,t) => List.Cons(h,t))
-        case List.Cons(aPar,aParsTail) => {
+        case _ => {
           println(Calendar.getInstance().getTime() + "...sequenceBal: aPars.length="+List.length(aPars))
           val dimidia:(List[Par[A]],List[Par[A]]) = List.halve(aPars)
-//          map2(sequenceBal[A](dimidia._2),sequenceBal[A](dimidia._1))(List.append)
           appendPar(sequenceBal[A](dimidia._2))(sequenceBal[A](dimidia._1))
         }
-      }
-      }
+      }}
 
 
       // book: Once we have sequence, we can complete our implementation of parMap:
@@ -186,19 +165,36 @@ trait Future[A] {
       // 7.6 Implement parFilter, which filters elements of a list in parallel.
       def parFilterSequential[A](as: List[A])(f: A => Boolean): Par[List[A]] = unit(List.filter(as)(f))
       def parFilter[A](as: List[A])(f: A => Boolean): Par[List[A]] = {
-      val dimidia:(List[A],List[A]) = List.halve(as)
+        val dimidia:(List[A],List[A]) = List.halve(as)
         map2(lazyUnit(filterSleep(dimidia._2)(f)(3000)),lazyUnit(filterSleep(dimidia._1)(f)(3000)))(List.append)
       }
-/*      def parBinOp[A](as: List[A])(bs: List[B])(f: A => Boolean): Par[List[A]] = {
-      val dimidia:(List[A],List[A]) = List.halve(as)
-        map2(lazyUnit(filterSleep(dimidia._2)(f)(3000)),lazyUnit(filterSleep(dimidia._1)(f)(3000)))(List.append)
-      }*/
+
+
+      // general binary operator for lists
+      def parBinOp[A](as: List[A])(z:A)(f: (A, A) => A): Par[A] = as match{
+        case List.Nil => lazyUnit(z)
+        case List.Cons(a,List.Nil) => lazyUnit(f(a,z))
+        case _ => {
+//          println("...parBinOp: z="+z+"   as="+List.myString(as))
+          val dimidia:(List[A],List[A]) = List.halve(as)
+          map2(parBinOp[A](dimidia._2)(z)(f),parBinOp[A](dimidia._1)(z)(f))(f)
+        }
+      }
+
+      def sumIntList(ints: List[Int]) = parBinOp[Int](ints)(0)(_+_)
+      def prodIntList(ints: List[Int]) = parBinOp[Int](ints)(1)(_*_)
+      def maxIntList(ints: List[Int]) = parBinOp[Int](ints)(Int.MinValue)(_.max(_))
+
+      // 7.11 Implement choiceN and then choice in terms of choiceN.
+      def choiceN[A](n: Par[Int])(choices: List[Par[A]]): Par[A] = es => List.drop(choices, n(es).get-1) match {
+        case List.Cons(h,t) => h(es)
+      }
+      def choice[A](cond: Par[Boolean])(t:Par[A] , f:Par[A]): Par[A] = choiceN(map[Boolean,Int](cond)(if (_) 2 else 1))(List(f,t))
+
+      def sumProdMaxIntList(ints: List[Int])(selector:Int):Par[Int] = choiceN(lazyUnit(selector))(List(sumIntList(ints),prodIntList(ints),maxIntList(ints)))
     }
-
   }
-
-
-}
+}  // Ch_07 {
 
 
 object nith_Chapter_07 extends App {
@@ -258,9 +254,7 @@ object nith_Chapter_07 extends App {
   lazy val oneStream: Ch05.Stream[Int] = Ch05.Stream.cons(1, oneStream)
   val isThereTwo: Ch05.Stream[Int] => Boolean = _.exists(_ == 2)
   lazy val nonTerminatingBool = isThereTwo(oneStream)
-  lazy val nonTerminatingCall: Callable[Boolean] = new Callable[Boolean] {
-    def call = nonTerminatingBool
-  }
+  lazy val nonTerminatingCall: Callable[Boolean] = new Callable[Boolean] {def call = nonTerminatingBool}
   // Pars
   lazy val twoPar: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(2)
   lazy val threePar: Ch07.Phase3.Par[Int] = Ch07.Phase3.Par.unit(3)
@@ -278,16 +272,8 @@ object nith_Chapter_07 extends App {
   println("\n** Exercises 7.3 and 7.4 with timeOut exceptions **")
   log("map2Timeout(twoPar,threePar)(_ * _)(es1).get = " + Ch07.Phase3.Par.map2Timeout(twoPar,threePar)(_ * _)(es1).get)
   log("map2Timeout(twoPar,threePar)(_ * _)(es1).get(1,TimeUnit.SECONDS) = " + Ch07.Phase3.Par.map2Timeout(twoPar,threePar)(_ * _)(es1).get(1, TimeUnit.SECONDS))
-  try {
-    log(Ch07.Phase3.Par.map2Timeout(infinitePar,threePar)(intSign)(es1).get(2,TimeUnit.SECONDS))
-  } catch {
-    case e: Exception => logException(e)(es1)("map2Timeout(infinitePar,threePar)(intSign)(es1).get(2,TimeUnit.SECONDS)")
-  }
-  try {
-    log(Ch07.Phase3.Par.asyncF(isThereTwo)(oneStream)(es1).get(2,TimeUnit.SECONDS))
-  } catch {
-    case e: Exception => logException(e)(es1)("asyncF(isThereTwo)(oneStream)(es1).get(2,TimeUnit.SECONDS)")
-  }
+  try {log(Ch07.Phase3.Par.map2Timeout(infinitePar,threePar)(intSign)(es1).get(2,TimeUnit.SECONDS))} catch {case e: Exception => logException(e)(es1)("map2Timeout(infinitePar,threePar)(intSign)(es1).get(2,TimeUnit.SECONDS)")}
+  try {log(Ch07.Phase3.Par.asyncF(isThereTwo)(oneStream)(es1).get(2,TimeUnit.SECONDS))} catch {case e: Exception => logException(e)(es1)("asyncF(isThereTwo)(oneStream)(es1).get(2,TimeUnit.SECONDS)")}
 
 
   println("\n** Exercise 7.5 **")
@@ -306,13 +292,27 @@ object nith_Chapter_07 extends App {
   println("\n** Exercise 7.6 **")
   log("parFilterSequential(List(0,1,2,3,4,5,6,7,8,9))(_%2==0)(es2).get) = " + List.myString(Ch07.Phase3.Par.parFilterSequential(List(0,1,2,3,4,5,6,7,8,9))(_%2==0)(es2).get))
   log("parFilter(List(0,1,2,3,4,5,6,7,8,9))(n=>n%2==0)(es2).get         = " + List.myString(Ch07.Phase3.Par.parFilter(List(0,1,2,3,4,5,6,7,8,9))(n=>n%2==0)(es2).get))
-
+  log("sumIntList(List())(esUnlimited).get                              = " + Ch07.Phase3.Par.sumIntList(List())(esUnlimited).get)
+  log("sumIntList(List(42))(esUnlimited).get                            = " + Ch07.Phase3.Par.sumIntList(List(42))(esUnlimited).get)
+  log("sumIntList(List(1,2,3,4,5,6,7,8,9,10))(esUnlimited).get          = " + Ch07.Phase3.Par.sumIntList(List(1,2,3,4,5,6,7,8,9,10))(esUnlimited).get)
+  log("prodIntList(List())(esUnlimited).get                             = " + Ch07.Phase3.Par.prodIntList(List())(esUnlimited).get)
+  log("prodIntList(List(42))(esUnlimited).get                           = " + Ch07.Phase3.Par.prodIntList(List(42))(esUnlimited).get)
+  log("prodIntList(List(1,2,3,4,5,6,7,8,9,10))(esUnlimited).get         = " + Ch07.Phase3.Par.prodIntList(List(1,2,3,4,5,6,7,8,9,10))(esUnlimited).get)
+  log("maxIntList(List())(esUnlimited).get                              = " + Ch07.Phase3.Par.maxIntList(List())(esUnlimited).get)
+  log("maxIntList(List(42))(esUnlimited).get                            = " + Ch07.Phase3.Par.maxIntList(List(42))(esUnlimited).get)
+  log("maxIntList(List(1,2,3,4,5,6,7,8,9,10))(esUnlimited).get          = " + Ch07.Phase3.Par.maxIntList(List(1,2,3,4,5,6,7,8,9,10))(esUnlimited).get)
+  Thread.sleep(100)
+  println("\n** Exercise 7.11 **")
+  log("sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(1)(esUnlimited).get = " + Ch07.Phase3.Par.sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(1)(esUnlimited).get)
+  log("sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(2)(esUnlimited).get = " + Ch07.Phase3.Par.sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(2)(esUnlimited).get)
+  log("sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(3)(esUnlimited).get = " + Ch07.Phase3.Par.sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(3)(esUnlimited).get)
+  try {log(Ch07.Phase3.Par.sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(4)(es1).get)} catch {case e: Exception => logException(e)(es1)("sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(4)(es1).get")}
+  log("choice(unit(false))(sumIntList(List(1,2,3,4,5,6,7,8,9,10)),prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get = " + Ch07.Phase3.Par.choice(Ch07.Phase3.Par.unit(false))(Ch07.Phase3.Par.sumIntList(List(1,2,3,4,5,6,7,8,9,10)), Ch07.Phase3.Par.prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get)
+  log("choice(unit(true)) (sumIntList(List(1,2,3,4,5,6,7,8,9,10)),prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get = " + Ch07.Phase3.Par.choice(Ch07.Phase3.Par.unit(true))(Ch07.Phase3.Par.sumIntList(List(1,2,3,4,5,6,7,8,9,10)), Ch07.Phase3.Par.prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get)
   
   log("*** Not finished yet ***\n")
-  log("*** Shtting down the executor services es1, es2 and esunlimited ***\n")
-  log("Executor Service es1="+es1+"\n")
-  log("Executor Service es2="+es2+"\n")
-  log("Executor Service esUnlimited="+esUnlimited+"\n")
+  log("********************************************************************\n")
+  log("*** Shutting down the executor services es1, es2 and esunlimited ***\n")
   shutExecService(es1)
   shutExecService(es2)
   shutExecService(esUnlimited)
