@@ -192,6 +192,19 @@ object Ch07 {
       def choice[A](cond: Par[Boolean])(t:Par[A] , f:Par[A]): Par[A] = choiceN(map[Boolean,Int](cond)(if (_) 2 else 1))(List(f,t))
 
       def sumProdMaxIntList(ints: List[Int])(selector:Int):Par[Int] = choiceN(lazyUnit(selector))(List(sumIntList(ints),prodIntList(ints),maxIntList(ints)))
+
+      // 7.13 Implement this new primitive chooser, and then use it to implement choice and choiceN.
+      def chooser[A,B](pa: Par[A])(choices: A => Par[B]): Par[B] = es => choices(pa(es).get)(es)
+
+      // 7.14 Implement join. Can you see how to implement flatMap using join?
+      // inner join
+      def join[A](ppa: Par[Par[A]]): Par[A] = es => map[Par[A],A](ppa)(aPar => aPar(es).get)(es)
+      def flatMap[A,B](a: Par[A])(f: A => Par[B]): Par[B] = join[B](map[A,Par[B]](a)(f))
+      // outer join
+      def join2[A](ppa: Par[Par[A]]): Par[A] = es => ppa(es).get()(es)
+      def flatMap2[A,B](a: Par[A])(f: A => Par[B]): Par[B] = join2[B](map[A,Par[B]](a)(f))
+      // 7.14 And can you implement join using flatMap?
+      def joinChooser[A](ppa: Par[Par[A]]): Par[A] = chooser[Par[A],A](ppa)(aPar => aPar)
     }
   }
 }  // Ch_07 {
@@ -309,8 +322,22 @@ object nith_Chapter_07 extends App {
   try {log(Ch07.Phase3.Par.sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(4)(es1).get)} catch {case e: Exception => logException(e)(es1)("sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(4)(es1).get")}
   log("choice(unit(false))(sumIntList(List(1,2,3,4,5,6,7,8,9,10)),prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get = " + Ch07.Phase3.Par.choice(Ch07.Phase3.Par.unit(false))(Ch07.Phase3.Par.sumIntList(List(1,2,3,4,5,6,7,8,9,10)), Ch07.Phase3.Par.prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get)
   log("choice(unit(true)) (sumIntList(List(1,2,3,4,5,6,7,8,9,10)),prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get = " + Ch07.Phase3.Par.choice(Ch07.Phase3.Par.unit(true))(Ch07.Phase3.Par.sumIntList(List(1,2,3,4,5,6,7,8,9,10)), Ch07.Phase3.Par.prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get)
-  
-  log("*** Not finished yet ***\n")
+
+  println("\n** Exercise 7.13 **")
+  log("chooser(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + Ch07.Phase3.Par.chooser(Ch07.Phase3.Par.unit(2))(n => Ch07.Phase3.Par.sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("chooser(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + Ch07.Phase3.Par.chooser(Ch07.Phase3.Par.unit(5))(n => Ch07.Phase3.Par.sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("chooser(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + Ch07.Phase3.Par.chooser(Ch07.Phase3.Par.unit(10))(n => Ch07.Phase3.Par.sumIntList(intList(n)(n)))(esUnlimited).get)
+
+  println("\n** Exercise 7.14 **")
+  log("flatMap users \"inner\" join, i.e. to convert ppa:Par[Par[A]] to pa:Par[A] it calculates the inner Par[A] to A")
+  log("flatMap(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + Ch07.Phase3.Par.flatMap(Ch07.Phase3.Par.unit(2))(n => Ch07.Phase3.Par.sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("flatMap(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + Ch07.Phase3.Par.flatMap(Ch07.Phase3.Par.unit(5))(n => Ch07.Phase3.Par.sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("flatMap(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + Ch07.Phase3.Par.flatMap(Ch07.Phase3.Par.unit(10))(n => Ch07.Phase3.Par.sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("flatMap2 users \"outer\" join, i.e. to convert ppa:Par[Par[A]] to pa:Par[A] it calculates the outer Par[Par[A]] to Par[A]")
+  log("flatMap2(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + Ch07.Phase3.Par.flatMap2(Ch07.Phase3.Par.unit(2))(n => Ch07.Phase3.Par.sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("flatMap2(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + Ch07.Phase3.Par.flatMap2(Ch07.Phase3.Par.unit(5))(n => Ch07.Phase3.Par.sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("flatMap2(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + Ch07.Phase3.Par.flatMap2(Ch07.Phase3.Par.unit(10))(n => Ch07.Phase3.Par.sumIntList(intList(n)(n)))(esUnlimited).get+"\n")
+
   log("********************************************************************\n")
   log("*** Shutting down the executor services es1, es2 and esunlimited ***\n")
   shutExecService(es1)
