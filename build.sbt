@@ -1,4 +1,4 @@
-vseq(com.github.retronym.SbtOneJar.oneJarSettings: _*)
+seq(com.github.retronym.SbtOneJar.oneJarSettings: _*)
 
 mainClass in (Compile,run) := Some("nith_Chapter_08")
 
