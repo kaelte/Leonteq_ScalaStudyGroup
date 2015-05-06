@@ -4,17 +4,17 @@ object Ch08 {
   // of a sum: List[Int] => Int function. You don’t have to write your properties down as executable ScalaCheck
   // code an informal description is fine.
 
-
   // 8.2 What properties specify a function that finds the maximum of a List[Int]?
 
   object Ch8Phase1 {
 
     // 8.3 Assuming the following representation of Prop, implement && as a method of Prop.
-
-    trait Prop { def check: Boolean }
+    trait Prop {
+      def check: Boolean
+      def &&(p: Prop): Prop = new Prop { def check: Boolean = this.check && p.check }
+    }
 
   }
-
 
   /*
   object Phase2 {
@@ -63,7 +63,6 @@ object Ch08 {
 */
 
 }
-
 
 object nith_Chapter_08 extends App {
 
