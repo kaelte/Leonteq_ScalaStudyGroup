@@ -1,8 +1,7 @@
-seq(com.github.retronym.SbtOneJar.oneJarSettings: _*)
+vseq(com.github.retronym.SbtOneJar.oneJarSettings: _*)
 
-mainClass in (Compile,run) := Some("nith_Chapter_07")
+mainClass in (Compile,run) := Some("nith_Chapter_08")
 
 fork := true
 
 cleanKeepFiles <+= target { target => target/ "scala-2.10" }
-
