@@ -11,7 +11,10 @@ object Ch08 {
     // 8.3 Assuming the following representation of Prop, implement && as a method of Prop.
     trait Prop {
       def check: Boolean
-      def &&(p: Prop): Prop = new Prop { def check: Boolean = this.check && p.check }
+
+      def &&(p: Prop): Prop = new Prop {
+        def check: Boolean = this.check && p.check
+      }
     }
 
   }
@@ -24,27 +27,34 @@ object Ch08 {
       def check: Either[(FailedCase, SuccessCount), SuccessCount]
     }
 
-    case class Gen[A](sample: Ch06.State[Ch06.RNG,A]) {
-      def flatMap[B](f: A => Gen[B]): Gen[B] = ???
-      def listOfN(size: Gen[Int]): Gen[List[A]] = ???
+    case class Gen[A](sample: Ch06.State[Ch06.RNG, A]) {
+      // 8.6 Implement flatMap, and then use it to implement this more dynamic version of listOfN.
+      def flatMap[B](f: A => Gen[B]): Gen[B] = new Gen[B](this.sample.flatMap[B](f(_).sample))
+
+      //      def listOfN(size: Gen[Int]): Gen[List[A]] = flatMap[List[A]](a => Ch06.sequence[Ch06.RNG, A](List.fill[Ch06.RandState[A]](size.sample.run)(???)))
+      def listOfN(size: Gen[Int]): Gen[List[A]] = {
+        val runOfAs : Ch06.RNG => (List[A],Ch06.RNG) = rng => Ch06.sequence[Ch06.RNG, A](List.fill[Ch06.RandState[A]](size.sample.run(rng)._1)(this.sample)).run(rng)
+        val stateOfAs: Ch06.State[Ch06.RNG, List[A]] = new Ch06.State[Ch06.RNG, List[A]](runOfAs)
+        new Gen[List[A]](stateOfAs)
+      }
     }
 
     def forAll[A](a: Gen[A])(f: A => Boolean): Prop = ???
 
     // 8.4 Implement Gen.choose using this representation of Gen. It should generate integers in the range
     // start to stopExclusive. Feel free to use functions you’ve already written.
-    def choose(start: Int, stopExclusive: Int): Gen[Int] = new Gen[Int](Ch06.nonNegativeLessThanState(stopExclusive-start).map[Int](_+start))
+    def choose(start: Int, stopExclusive: Int): Gen[Int] = new Gen[Int](Ch06.nonNegativeLessThanState(stopExclusive - start).map[Int](_ + start))
 
     // 8.5 Let’s see what else we can implement using this representation of Gen.
     // Try implementing unit, boolean, and listOfN.
     def unit[A](a: => A): Gen[A] = new Gen[A](Ch06.unitState[Ch06.RNG, A](a))
-    def boolean: Gen[Boolean] = new Gen[Boolean](new Ch06.State[Ch06.RNG,Boolean](rng => rng.nextInt match {case (n,r) => (n%2==0,r)}))
+    def boolean: Gen[Boolean] = new Gen[Boolean](new Ch06.State[Ch06.RNG, Boolean](rng => rng.nextInt match {
+      case (n, r) => (n % 2 == 0, r)
+    }))
     def listOfN[A](n: Int, g: Gen[A]): Gen[List[A]] = {
-      val stateOfAs : Ch06.State[Ch06.RNG, List[A]] = Ch06.sequence[Ch06.RNG, A](List.fill[Ch06.RandState[A]](n)(g.sample))
+      val stateOfAs: Ch06.State[Ch06.RNG, List[A]] = Ch06.sequence[Ch06.RNG, A](List.fill[Ch06.RandState[A]](n)(g.sample))
       new Gen[List[A]](stateOfAs)
     }
-
-    // 8.6 Implement flatMap, and then use it to implement this more dynamic version of listOfN.
 
 
     // 8.7 Implement union, for combining two generators of the same type into one,
@@ -53,7 +63,7 @@ object Ch08 {
 
     // 8.8 Implement weighted, a version of union that accepts a weight for each Gen and generates values
     // from each Gen with probability proportional to its weight.
-    def weighted[A](g1: (Gen[A],Double), g2: (Gen[A],Double)): Gen[A] = ???
+    def weighted[A](g1: (Gen[A], Double), g2: (Gen[A], Double)): Gen[A] = ???
 
   }
 
@@ -63,11 +73,33 @@ object Ch08 {
 object nith_Chapter_08 extends App {
 
   println("****** Chapter_08 ******")
-  println("\n* Some expressions using Int.MaxValue and Int.MinValue *")
-  println("Int.MinValue = %s".format(Int.MinValue))
-  println("Int.MaxValue =  %s".format(Int.MaxValue))
-  println("Long.MinValue = %s".format(Long.MinValue))
-  println("Long.MaxValue =  %s".format(Long.MaxValue))
+  val rng0: Ch06.RNG = Ch06.SimpleRNG(0)
+  val rng1: Ch06.RNG = Ch06.SimpleRNG(0).nextInt._2
+  val simpleRNGiterator: Int => Ch05.Stream[(Int, Ch06.RNG)] = count => Ch05.unfold2[(Int, Ch06.RNG), Ch06.RNG](count)(rng0)(rng => {
+    val (n, rng2) = rng.nextInt
+    ((n, rng2), rng2)
+  })
+
+  util.log("rng0 = %s".format(rng0))
+  util.log("rng1 = %s".format(rng1))
+  util.log("simpleRNGiterator(9) = %s".format(simpleRNGiterator(9).myString))
+
+  println("\n** Exercise 8.4 **")
+  util.log("choose(0,42).sample.run(rng0)                              = %s".format(Ch08.Phase2.choose(0,42).sample.run(rng0)))
+  util.log("choose(0,42).sample.run(choose(0,42).sample.run(rng0)._2)) = %s".format(Ch08.Phase2.choose(0,42).sample.run(Ch08.Phase2.choose(0,42).sample.run(rng0)._2)))
+
+  println("\n** Exercise 8.5 **")
+  util.log("unit(\"a\").sample.run(rng0)                          = %s".format(Ch08.Phase2.unit("a").sample.run(rng0)))
+  util.log("unit(\"a\").sample.run(unit(\"a\").sample.run(rng0)._2) = %s".format(Ch08.Phase2.unit("a").sample.run(Ch08.Phase2.unit("a").sample.run(rng0)._2)))
+  util.log("boolean.sample.run(rng0)                            = %s".format(Ch08.Phase2.boolean.sample.run(rng0)))
+  util.log("boolean.sample.run(boolean.sample.run(rng0))        = %s".format(Ch08.Phase2.boolean.sample.run(Ch08.Phase2.boolean.sample.run(rng0)._2)))
+  util.log("listOfN(10,unit(42)).sample.run(rng0)               = %s".format(Ch08.Phase2.listOfN(10,Ch08.Phase2.unit(42)).sample.run(rng0)))
+  util.log("listOfN[Int](10,choose(0,42)).sample.run(rng0)      = %s".format(Ch08.Phase2.listOfN[Int](10,Ch08.Phase2.choose(0,42)).sample.run(rng0)))
+
+
+  println("\n** Exercise 8.6 **")
+  util.log("unit(\"a\").listOfN(unit(10)).sample.run(rng0)        = %s".format(Ch08.Phase2.unit("a").listOfN(Ch08.Phase2.unit(10)).sample.run(rng0)))
+  util.log("choose(0,42).listOfN(unit(10)).sample.run(rng0)     = %s".format(Ch08.Phase2.choose(0,42).listOfN(Ch08.Phase2.unit(10)).sample.run(rng0)))
 
   println("*** Not finished yet ***")
 
