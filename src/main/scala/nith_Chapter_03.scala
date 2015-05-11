@@ -22,6 +22,10 @@ object List {
 
 
   //exercise 3.2
+  def head[A](l: List[A]): A = l match {
+    case Cons(x, t) => x
+  }
+
   def tail[A](l: List[A]): List[A] = l match {
     case Nil => Nil
     case Cons(x, t) => t

@@ -44,14 +44,15 @@ object Ch08 {
     // 8.4 Implement Gen.choose using this representation of Gen. It should generate integers in the range
     // start to stopExclusive. Feel free to use functions you’ve already written.
     def choose(start: Int, stopExclusive: Int): Gen[Int] = new Gen[Int](Ch06.nonNegativeLessThanState(stopExclusive - start).map[Int](_ + start))
+    final def choose(start: Double, stopExclusive: Double): Gen[Double] = new Gen[Double](Ch06.doubleRandState.map[Double]( x=>(stopExclusive - start)*x+start))
 
     // 8.5 Let’s see what else we can implement using this representation of Gen.
     // Try implementing unit, boolean, and listOfN.
-    def unit[A](a: => A): Gen[A] = new Gen[A](Ch06.unitState[Ch06.RNG, A](a))
-    def boolean: Gen[Boolean] = new Gen[Boolean](new Ch06.State[Ch06.RNG, Boolean](rng => rng.nextInt match {
+    final def unit[A](a: => A): Gen[A] = new Gen[A](Ch06.unitState[Ch06.RNG, A](a))
+    final def boolean: Gen[Boolean] = new Gen[Boolean](new Ch06.State[Ch06.RNG, Boolean](rng => rng.nextInt match {
       case (n, r) => (n % 2 == 0, r)
     }))
-    def listOfN[A](n: Int, g: Gen[A]): Gen[List[A]] = {
+    final def listOfN[A](n: Int, g: Gen[A]): Gen[List[A]] = {
       val stateOfAs: Ch06.State[Ch06.RNG, List[A]] = Ch06.sequence[Ch06.RNG, A](List.fill[Ch06.RandState[A]](n)(g.sample))
       new Gen[List[A]](stateOfAs)
     }
@@ -59,12 +60,18 @@ object Ch08 {
 
     // 8.7 Implement union, for combining two generators of the same type into one,
     // by pulling values from each generator with equal likelihood.
-    def union[A](g1: Gen[A], g2: Gen[A]): Gen[A] = ???
+    final def union[A](g1: Gen[A], g2: Gen[A]): Gen[A] = boolean.flatMap[A](p => if (p) g1 else g2)
+    final def unionLazy[A](g1: => Gen[A], g2: => Gen[A]): Gen[A] = boolean.flatMap[A](p => if (p) g1 else g2)
 
     // 8.8 Implement weighted, a version of union that accepts a weight for each Gen and generates values
     // from each Gen with probability proportional to its weight.
-    def weighted[A](g1: (Gen[A], Double), g2: (Gen[A], Double)): Gen[A] = ???
-
+    final def weighted[A](g1: (Gen[A], Double), g2: (Gen[A], Double)): Gen[A] = choose(0.0-g1._2, g2._2).flatMap[A](x => if (x<0) g1._1 else g2._1)
+    final def weighted2[A](g1: (Gen[A], Double), g2: (Gen[A], Double)): Gen[A] = {
+      val g1weight : Double = g1._2 / (g1._2 + g2._2)
+      val doubleGen : Gen[Double] = new Gen[Double](Ch06.doubleRandState)
+      util.log("...weighted : g1weight="+g1weight) 
+      doubleGen.flatMap[A]((x => if (x<g1weight) g1._1 else g2._1))
+      }
   }
 
 
@@ -80,13 +87,16 @@ object nith_Chapter_08 extends App {
     ((n, rng2), rng2)
   })
 
+
   util.log("rng0 = %s".format(rng0))
   util.log("rng1 = %s".format(rng1))
   util.log("simpleRNGiterator(9) = %s".format(simpleRNGiterator(9).myString))
 
   println("\n** Exercise 8.4 **")
-  util.log("choose(0,42).sample.run(rng0)                              = %s".format(Ch08.Phase2.choose(0,42).sample.run(rng0)))
-  util.log("choose(0,42).sample.run(choose(0,42).sample.run(rng0)._2)) = %s".format(Ch08.Phase2.choose(0,42).sample.run(Ch08.Phase2.choose(0,42).sample.run(rng0)._2)))
+  util.log("choose(0,42).sample.run(rng0)                                  = %s".format(Ch08.Phase2.choose(0,42).sample.run(rng0)))
+  util.log("choose(0,42).sample.run(choose(0,42).sample.run(rng0)._2))     = %s".format(Ch08.Phase2.choose(0,42).sample.run(Ch08.Phase2.choose(0,42).sample.run(rng0)._2)))
+  util.log("choose(0.0,42.0).sample.run(rng0)                              = %s".format(Ch08.Phase2.choose(0.0,42.0).sample.run(rng0)))
+  util.log("choose(0.0,42.0).sample.run(choose(0,42).sample.run(rng0)._2)) = %s".format(Ch08.Phase2.choose(0.0,42.0).sample.run(Ch08.Phase2.choose(0.0,42.0).sample.run(rng0)._2)))
 
   println("\n** Exercise 8.5 **")
   util.log("unit(\"a\").sample.run(rng0)                          = %s".format(Ch08.Phase2.unit("a").sample.run(rng0)))
@@ -96,10 +106,17 @@ object nith_Chapter_08 extends App {
   util.log("listOfN(10,unit(42)).sample.run(rng0)               = %s".format(Ch08.Phase2.listOfN(10,Ch08.Phase2.unit(42)).sample.run(rng0)))
   util.log("listOfN[Int](10,choose(0,42)).sample.run(rng0)      = %s".format(Ch08.Phase2.listOfN[Int](10,Ch08.Phase2.choose(0,42)).sample.run(rng0)))
 
-
   println("\n** Exercise 8.6 **")
   util.log("unit(\"a\").listOfN(unit(10)).sample.run(rng0)        = %s".format(Ch08.Phase2.unit("a").listOfN(Ch08.Phase2.unit(10)).sample.run(rng0)))
-  util.log("choose(0,42).listOfN(unit(10)).sample.run(rng0)     = %s".format(Ch08.Phase2.choose(0,42).listOfN(Ch08.Phase2.unit(10)).sample.run(rng0)))
+
+
+  println("\n** Exercise 8.7 and 8.8**")
+  util.log("union(choose(-42,-1),choose(1,42)).listOfN(unit(20)).sample.run(rng0))               = %s".format(Ch08.Phase2.union(Ch08.Phase2.choose(-42,-1),Ch08.Phase2.choose(1,42)).listOfN(Ch08.Phase2.unit(20)).sample.run(rng0)))
+  util.log("weighted((choose(-42,-1),0.0),(choose(1,42),1.0)).listOfN(unit(20)).sample.run(rng0) = %s".format(Ch08.Phase2.weighted((Ch08.Phase2.choose(-42,-1),0.0),(Ch08.Phase2.choose(1,42),1.0)).listOfN(Ch08.Phase2.unit(20)).sample.run(rng0)))
+  util.log("unfold(rng0)(rng => Some(double(rng))).take(20)                                      = %s".format(Ch05.unfold[Double, Ch06.RNG](rng0)(rng => Some(Ch06.double(rng))).take(20).myString))
+  util.log("weighted((choose(-42,-1),0.1),(choose(1,42),0.9)).listOfN(unit(20)).sample.run(rng0) = %s".format(Ch08.Phase2.weighted((Ch08.Phase2.choose(-42,-1),0.1),(Ch08.Phase2.choose(1,42),0.9)).listOfN(Ch08.Phase2.unit(20)).sample.run(rng0)))
+  util.log("weighted((choose(-42,-1),0.2),(choose(1,42),0.8)).listOfN(unit(20)).sample.run(rng0) = %s".format(Ch08.Phase2.weighted((Ch08.Phase2.choose(-42,-1),0.2),(Ch08.Phase2.choose(1,42),0.8)).listOfN(Ch08.Phase2.unit(20)).sample.run(rng0)))
+  util.log("weighted((choose(-42,-1),0.5),(choose(1,42),0.5)).listOfN(unit(20)).sample.run(rng0) = %s".format(Ch08.Phase2.weighted((Ch08.Phase2.choose(-42,-1),0.5),(Ch08.Phase2.choose(1,42),0.5)).listOfN(Ch08.Phase2.unit(20)).sample.run(rng0)))
 
   println("*** Not finished yet ***")
 
