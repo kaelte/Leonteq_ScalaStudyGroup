@@ -1,3 +1,4 @@
+import Ch04_Option.{None, Option, Some}
 object Ch06 {
 
   trait RNG {
