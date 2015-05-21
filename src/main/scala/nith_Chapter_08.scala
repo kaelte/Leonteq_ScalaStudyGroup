@@ -169,9 +169,84 @@ object Ch08 {
     //     def unsized: SGen[A] = new SGen[A]( n => this)
   }
 
+  object Phase3 {
+
+    import Phase2.{Gen, Passed, Falsified, Result, SGen, TestCases, unit}
+
+    type MaxSize = Int
+
+    case class Prop(run: (MaxSize, TestCases, RNG) => Result) {
+      // EXERCISE 8.9
+      // Now that we have a representation of Prop, implement && and || for composing Prop values. Notice that in the
+      // case of failure we don’t know which property was responsible, the left or the right. Can you devise a way of
+      // handling this, perhaps by allowing Prop values to be assigned a tag or label which gets displayed in the event
+      // of a failure?
+      final def &&(p: Prop): Prop = {
+        def newRunner(ms: MaxSize, tc: TestCases, r: RNG): Result = this.run(ms, tc, r) match {
+          case Passed => p.run(ms, tc, r) match {
+            case Falsified(rFail, rSuc) => new Falsified("LET prop passed but RIGHT Prop falsified: " + rFail, rSuc)
+            case Passed => Passed
+          }
+          case Falsified(lFail, lSuc) => p.run(ms, tc, r) match {
+            case Passed => new Falsified("RIGHT Prop passed but LEFT Prop falsified: " + lFail, lSuc)
+            case Falsified(rFail, rSuc) => new Falsified("BOTH Props falsified: (LEFT prop after " + lSuc + " test cases: " + lFail + ", RIGHT prop after " + rSuc + " test cases: " + rFail + ")", lSuc.min(rSuc))
+          }
+        }
+        Prop(newRunner)
+      }
+
+      final def ||(p: Prop): Prop = {
+        def newRunner(ms: MaxSize, tc: TestCases, r: RNG): Result = this.run(ms, tc, r) match {
+          case Passed => Passed
+          case Falsified(lFail, lSuc) => p.run(ms, tc, r) match {
+            case Passed => Passed
+            case Falsified(rFail, rSuc) => new Falsified("BOTH Props falsified: (LEFT prop after " + lSuc + " test cases: " + lFail + ", RIGHT prop after " + rSuc + " test cases: " + rFail + ")", lSuc.max(rSuc))
+          }
+        }
+        Prop(newRunner)
+      }
+    }
+
+    // 2 usefull constants for the type Prop
+    def alwaysFalsified: Prop = new Prop((_, _, _) => Falsified("always Falsified", 0))
+
+    def alwaysPassed: Prop = new Prop((_, _, _) => Passed)
+
+    def run(p: Prop,
+            maxSize: Int = 100,
+            testCases: Int = 100,
+            rng: RNG = SimpleRNG(System.currentTimeMillis))
+    : String =
+      p.run(maxSize, testCases, rng) match {
+        case Falsified(msg, n) => "Falsified after "+n+" passed tests:\n $msg"
+        case Passed => "Passed " +testCases+" tests."
+      }
+
+
+    def forAll[A](g: SGen[A])(f: A => Boolean): Prop = forAll(g.forSize)(f)
+
+    def forAll[A](g: Int => Phase2.Gen[A])(f: A => Boolean): Prop = Prop {
+      (max, n, rng) =>
+        val casesPerSize: Int = (n + (max - 1)) / max
+        val propSequence: Int => Phase2.Prop = i => Phase2.forAll(g(i))(f)
+        val props: List[Phase2.Prop] = List.map(List.integers(0)(n.min(max) + 1))(propSequence)
+        val propsNew: List[Prop] = List.map(props)(p => Prop {
+          (_, _, rng) => p.run(casesPerSize, rng)
+        })
+        val prop: Prop = List.foldLeft[Prop, Prop](propsNew, alwaysPassed)(prop1 => prop2 => prop2.&&(prop1))
+        prop.run(max, n, rng)
+    }
+
+    // 8.12 Implement a listOf combinator that doesn’t accept an explicit size. It should return an SGen instead of a
+    // Gen. The implementation should generate lists of the requested size.
+  }
+
 }
 
 object nith_Chapter_08 extends App {
+
+  import Ch08.Phase2.{boolean, choose, forAll, Gen, listOf, listOfN, SGen, union, unit, weighted}
+  import Ch08.Phase3.{Prop, run}
 
   println("****** Chapter_08 ******")
   val rng0: RNG = SimpleRNG(0)
@@ -187,48 +262,58 @@ object nith_Chapter_08 extends App {
   log("simpleRNGiterator(9) = %s".format(simpleRNGiterator(9).myString))
 
   println("\n** Exercise 8.4 **")
-  log("choose(0,42).sample.run(rng0)                                  = %s".format(Ch08.Phase2.choose(0, 42).sample.run(rng0)))
-  log("choose(0,42).sample.run(choose(0,42).sample.run(rng0)._2))     = %s".format(Ch08.Phase2.choose(0, 42).sample.run(Ch08.Phase2.choose(0, 42).sample.run(rng0)._2)))
-  log("choose(0.0,42.0).sample.run(rng0)                              = %s".format(Ch08.Phase2.choose(0.0, 42.0).sample.run(rng0)))
-  log("choose(0.0,42.0).sample.run(choose(0,42).sample.run(rng0)._2)) = %s".format(Ch08.Phase2.choose(0.0, 42.0).sample.run(Ch08.Phase2.choose(0.0, 42.0).sample.run(rng0)._2)))
+  log("choose(0,42).sample.run(rng0)                                  = %s".format(choose(0, 42).sample.run(rng0)))
+  log("choose(0,42).sample.run(choose(0,42).sample.run(rng0)._2))     = %s".format(choose(0, 42).sample.run(choose(0, 42).sample.run(rng0)._2)))
+  log("choose(0.0,42.0).sample.run(rng0)                              = %s".format(choose(0.0, 42.0).sample.run(rng0)))
+  log("choose(0.0,42.0).sample.run(choose(0,42).sample.run(rng0)._2)) = %s".format(choose(0.0, 42.0).sample.run(choose(0.0, 42.0).sample.run(rng0)._2)))
 
   println("\n** Exercise 8.5 **")
-  log("unit(\"a\").sample.run(rng0)                          = %s".format(Ch08.Phase2.unit("a").sample.run(rng0)))
-  log("unit(\"a\").sample.run(unit(\"a\").sample.run(rng0)._2) = %s".format(Ch08.Phase2.unit("a").sample.run(Ch08.Phase2.unit("a").sample.run(rng0)._2)))
-  log("boolean.sample.run(rng0)                            = %s".format(Ch08.Phase2.boolean.sample.run(rng0)))
-  log("boolean.sample.run(boolean.sample.run(rng0))        = %s".format(Ch08.Phase2.boolean.sample.run(Ch08.Phase2.boolean.sample.run(rng0)._2)))
-  log("listOfN(10,unit(42)).sample.run(rng0)               = %s".format(Ch08.Phase2.listOfN(10, Ch08.Phase2.unit(42)).sample.run(rng0)))
-  log("listOfN[Int](10,choose(0,42)).sample.run(rng0)      = %s".format(Ch08.Phase2.listOfN[Int](10, Ch08.Phase2.choose(0, 42)).sample.run(rng0)))
+  log("unit(\"a\").sample.run(rng0)                          = %s".format(unit("a").sample.run(rng0)))
+  log("unit(\"a\").sample.run(unit(\"a\").sample.run(rng0)._2) = %s".format(unit("a").sample.run(unit("a").sample.run(rng0)._2)))
+  log("boolean.sample.run(rng0)                            = %s".format(boolean.sample.run(rng0)))
+  log("boolean.sample.run(boolean.sample.run(rng0))        = %s".format(boolean.sample.run(boolean.sample.run(rng0)._2)))
+  log("listOfN(10,unit(42)).sample.run(rng0)               = %s".format(listOfN(10, unit(42)).sample.run(rng0)))
+  log("listOfN[Int](10,choose(0,42)).sample.run(rng0)      = %s".format(listOfN[Int](10, choose(0, 42)).sample.run(rng0)))
 
   println("\n** Exercise 8.6 **")
-  log("unit(\"a\").listOfN(unit(10)).sample.run(rng0)        = %s".format(Ch08.Phase2.unit("a").listOfN(Ch08.Phase2.unit(10)).sample.run(rng0)))
-  log("choose(0,42).listOfN(unit(10)).sample.run(rng0)     = %s".format(Ch08.Phase2.choose(0, 42).listOfN(Ch08.Phase2.unit(10)).sample.run(rng0)))
+  log("unit(\"a\").listOfN(unit(10)).sample.run(rng0)        = %s".format(unit("a").listOfN(unit(10)).sample.run(rng0)))
+  log("choose(0,42).listOfN(unit(10)).sample.run(rng0)     = %s".format(choose(0, 42).listOfN(unit(10)).sample.run(rng0)))
 
 
   println("\n** Exercise 8.7 and 8.8**")
-  log("union(choose(-42,-1),choose(1,42)).listOfN(unit(20)).sample.run(rng0))               = %s".format(Ch08.Phase2.union(Ch08.Phase2.choose(-42, -1), Ch08.Phase2.choose(1, 42)).listOfN(Ch08.Phase2.unit(20)).sample.run(rng0)))
-  log("weighted((choose(-42,-1),0.0),(choose(1,42),1.0)).listOfN(unit(20)).sample.run(rng0) = %s".format(Ch08.Phase2.weighted((Ch08.Phase2.choose(-42, -1), 0.0), (Ch08.Phase2.choose(1, 42), 1.0)).listOfN(Ch08.Phase2.unit(20)).sample.run(rng0)))
+  log("union(choose(-42,-1),choose(1,42)).listOfN(unit(20)).sample.run(rng0))               = %s".format(union(choose(-42, -1), choose(1, 42)).listOfN(unit(20)).sample.run(rng0)))
+  log("weighted((choose(-42,-1),0.0),(choose(1,42),1.0)).listOfN(unit(20)).sample.run(rng0) = %s".format(weighted((choose(-42, -1), 0.0), (choose(1, 42), 1.0)).listOfN(unit(20)).sample.run(rng0)))
   //  log("unfold(rng0)(rng => Some(double(rng))).take(20)                                      = %s".format(unfold[Double, RNG](rng0)(rng => Some(double(rng))).take(20).myString))
-  log("weighted((choose(-42,-1),0.1),(choose(1,42),0.9)).listOfN(unit(20)).sample.run(rng0) = %s".format(Ch08.Phase2.weighted((Ch08.Phase2.choose(-42, -1), 0.1), (Ch08.Phase2.choose(1, 42), 0.9)).listOfN(Ch08.Phase2.unit(20)).sample.run(rng0)))
-  log("weighted((choose(-42,-1),0.2),(choose(1,42),0.8)).listOfN(unit(20)).sample.run(rng0) = %s".format(Ch08.Phase2.weighted((Ch08.Phase2.choose(-42, -1), 0.2), (Ch08.Phase2.choose(1, 42), 0.8)).listOfN(Ch08.Phase2.unit(20)).sample.run(rng0)))
-  log("weighted((choose(-42,-1),0.5),(choose(1,42),0.5)).listOfN(unit(20)).sample.run(rng0) = %s".format(Ch08.Phase2.weighted((Ch08.Phase2.choose(-42, -1), 0.5), (Ch08.Phase2.choose(1, 42), 0.5)).listOfN(Ch08.Phase2.unit(20)).sample.run(rng0)))
+  log("weighted((choose(-42,-1),0.1),(choose(1,42),0.9)).listOfN(unit(20)).sample.run(rng0) = %s".format(weighted((choose(-42, -1), 0.1), (choose(1, 42), 0.9)).listOfN(unit(20)).sample.run(rng0)))
+  log("weighted((choose(-42,-1),0.2),(choose(1,42),0.8)).listOfN(unit(20)).sample.run(rng0) = %s".format(weighted((choose(-42, -1), 0.2), (choose(1, 42), 0.8)).listOfN(unit(20)).sample.run(rng0)))
+  log("weighted((choose(-42,-1),0.5),(choose(1,42),0.5)).listOfN(unit(20)).sample.run(rng0) = %s".format(weighted((choose(-42, -1), 0.5), (choose(1, 42), 0.5)).listOfN(unit(20)).sample.run(rng0)))
 
   println("\n** Exercise 8.9 **")
-  log("choose(1,100).listOfN(unit(10)).sample.run(rng0)      = %s".format(Ch08.Phase2.choose(1, 100).listOfN(Ch08.Phase2.unit(10)).sample.run(rng0)))
-  log("choose(1,100))(n => n MOD 5 > 0).run(10,rng0)         = %s".format(Ch08.Phase2.forAll[Int](Ch08.Phase2.choose(1, 100))(n => n % 5 > 0).run(10, rng0)))
-  log("choose(1,100))(n => n MOD 7 > 0).run(10,rng0)         = %s".format(Ch08.Phase2.forAll[Int](Ch08.Phase2.choose(1, 100))(n => n % 7 > 0).run(10, rng0)))
-  log("conjunction &&                                        = %s".format(Ch08.Phase2.forAll[Int](Ch08.Phase2.choose(1, 100))(n => n % 5 > 0).&&(Ch08.Phase2.forAll[Int](Ch08.Phase2.choose(1, 100))(n => n % 7 > 0)).run(10, rng0)))
-  log("disjunction ||                                        = %s".format(Ch08.Phase2.forAll[Int](Ch08.Phase2.choose(1, 100))(n => n % 5 > 0).||(Ch08.Phase2.forAll[Int](Ch08.Phase2.choose(1, 100))(n => n % 7 > 0)).run(10, rng0)))
-  log("choose(1,100))(n => n MOD 5 > 0).run(10,rng0) && true = %s".format(Ch08.Phase2.forAll[Int](Ch08.Phase2.choose(1, 100))(n => n % 5 > 0).&&(Ch08.Phase2.forAll[Int](Ch08.Phase2.unit(0))(_ => true)).run(10, rng0)))
-  log("choose(1,100))(n => n MOD 5 > 0).run(10,rng0) || true = %s".format(Ch08.Phase2.forAll[Int](Ch08.Phase2.choose(1, 100))(n => n % 5 > 0).||(Ch08.Phase2.forAll[Int](Ch08.Phase2.unit(0))(_ => true)).run(10, rng0)))
+  log("choose(1,100).listOfN(unit(10)).sample.run(rng0)      = %s".format(choose(1, 100).listOfN(unit(10)).sample.run(rng0)))
+  log("choose(1,100))(n => n MOD 5 > 0).run(10,rng0)         = %s".format(forAll[Int](choose(1, 100))(n => n % 5 > 0).run(10, rng0)))
+  log("choose(1,100))(n => n MOD 7 > 0).run(10,rng0)         = %s".format(forAll[Int](choose(1, 100))(n => n % 7 > 0).run(10, rng0)))
+  log("conjunction &&                                        = %s".format(forAll[Int](choose(1, 100))(n => n % 5 > 0).&&(forAll[Int](choose(1, 100))(n => n % 7 > 0)).run(10, rng0)))
+  log("disjunction ||                                        = %s".format(forAll[Int](choose(1, 100))(n => n % 5 > 0).||(forAll[Int](choose(1, 100))(n => n % 7 > 0)).run(10, rng0)))
+  log("choose(1,100))(n => n MOD 5 > 0).run(10,rng0) && true = %s".format(forAll[Int](choose(1, 100))(n => n % 5 > 0).&&(forAll[Int](unit(0))(_ => true)).run(10, rng0)))
+  log("choose(1,100))(n => n MOD 5 > 0).run(10,rng0) || true = %s".format(forAll[Int](choose(1, 100))(n => n % 5 > 0).||(forAll[Int](unit(0))(_ => true)).run(10, rng0)))
 
   println("\n** Exercise 8.12 **")
-  log("listOf(unit(\"a\")).forSize(0).sample.run(rng0)    = %s".format(Ch08.Phase2.listOf(Ch08.Phase2.unit("a")).forSize(0).sample.run(rng0)))
-  log("listOf(choose(0,42)).forSize(0).sample.run(rng0) = %s".format(Ch08.Phase2.listOf(Ch08.Phase2.choose(0,42)).forSize(0).sample.run(rng0)))
-  log("listOf(unit(\"a\")).forSize(4).sample.run(rng0)    = %s".format(Ch08.Phase2.listOf(Ch08.Phase2.unit("a")).forSize(4).sample.run(rng0)))
-  log("listOf(choose(0,42)).forSize(4).sample.run(rng0) = %s".format(Ch08.Phase2.listOf(Ch08.Phase2.choose(0,42)).forSize(4).sample.run(rng0)))
-  log("listOf(unit(\"a\")).forSize(8).sample.run(rng0)    = %s".format(Ch08.Phase2.listOf(Ch08.Phase2.unit("a")).forSize(8).sample.run(rng0)))
-  log("listOf(choose(0,42)).forSize(8).sample.run(rng0) = %s".format(Ch08.Phase2.listOf(Ch08.Phase2.choose(0,42)).forSize(8).sample.run(rng0)))
+  log("listOf(unit(\"a\")).forSize(0).sample.run(rng0)    = %s".format(listOf(unit("a")).forSize(0).sample.run(rng0)))
+  log("listOf(choose(0,42)).forSize(0).sample.run(rng0) = %s".format(listOf(choose(0, 42)).forSize(0).sample.run(rng0)))
+  log("listOf(unit(\"a\")).forSize(4).sample.run(rng0)    = %s".format(listOf(unit("a")).forSize(4).sample.run(rng0)))
+  log("listOf(choose(0,42)).forSize(4).sample.run(rng0) = %s".format(listOf(choose(0, 42)).forSize(4).sample.run(rng0)))
+  log("listOf(unit(\"a\")).forSize(8).sample.run(rng0)    = %s".format(listOf(unit("a")).forSize(8).sample.run(rng0)))
+  log("listOf(choose(0,42)).forSize(8).sample.run(rng0) = %s".format(listOf(choose(0, 42)).forSize(8).sample.run(rng0)))
+
+  println("\n** Exercise 8.13 **")
+  val smallInt: Gen[Int] = choose(-10, 10)
+  val maxIsTheBiggest: List[Int] => Boolean = (ns: List[Int]) => {
+    val max: Int = List.max(ns)
+    !List.exists(ns)(_ > max)
+  }
+  val maxProp : Prop = Ch08.Phase3.forAll[List[Int]](listOf(smallInt))(maxIsTheBiggest)
+  log("maxIsTheBiggest(List.Nil) = " + maxIsTheBiggest(List.Nil))
+  log("run(maxProp) = " + run(maxProp))
 
   println("*** Not finished yet ***")
 

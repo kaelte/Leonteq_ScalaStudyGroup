@@ -113,6 +113,8 @@ object List {
 
   def productFoldLeft(l: List[Int]) = foldLeft(l, 1)(x => if (x == 0) _ => 0 else y => x * y)
 
+  def max(l: List[Int]) = foldLeft(l, 1)(x => y => x.max(y))
+
   def length[A](as: List[A]): Int = foldLeft(as, 0)(a => y => 1 + y)
 
   //exercise 3.12
@@ -222,6 +224,30 @@ object List {
   def split[A](as:List[A])(n:Int):(List[A],List[A]) = shovel[A](as)(Nil)(n)
   def halve[A](as:List[A]):(List[A],List[A]) = split(as)(length(as)/2)
 
+  // needed for chapter 8
+  final def integers(from:Int)(to:Int):List[Int] = {
+    @tailrec
+    def go(ints:List[Int])(from:Int)(to:Int):List[Int] = if (from == to) Cons(from,ints) else go(Cons(from,ints))(from+(to-from).signum)(to)
+    List.reverse(go(Nil)(from)(to))
+  }
+
+  final def merge[A](left:List[A])(right:List[A])(p:A=>A=>Boolean):List[A] = {
+    @tailrec
+    def go(intermedResult:List[A])(left:List[A])(right:List[A])(p:A=>A=>Boolean):List[A] = left match {
+    case Nil => List.append[A](List.reverse(intermedResult),right)
+    case Cons(l,lTail) => right match {
+      case Nil => List.append[A](List.reverse(intermedResult),left)
+      case Cons(r,rTail) => if (p(l)(r)) go(Cons(l,intermedResult))(lTail)(right)(p) else go(Cons(r,intermedResult))(left)(rTail)(p)
+    }
+  }
+    go(Nil)(left)(right)(p)
+  }
+
+  final def merge[A](ass:List[List[A]])(p:A=>A=>Boolean):List[A] = List.foldLeft[List[A], List[A]](ass,Nil)(as1 => as2 => merge[A](as1)(as2)(p))
+
+  final def splitIntoReversedListOfSingletons[A](as:List[A]):List[List[A]] = List.foldLeft[A, List[List[A]]](as,Nil)(a => ass => Cons(Cons(a,Nil),ass))
+
+  final def mergeSort[A](as:List[A])(p:A=>A=>Boolean):List[A] = merge[A](splitIntoReversedListOfSingletons[A](as))(p)
 }
 
 sealed trait Tree[+A]
@@ -312,12 +338,10 @@ object nith_Chapter_03 {
     val oneList: List[Int] = Cons(1, Nil)
     val strList: List[String] = Cons("a", Cons("b", Nil))
     val dblList: List[Double] = List(0.1, 1.2, 2.3, 3.4, 4.5)
-    val fivList: List[Int] = List(0, 1, 2, 3, 4)
-    val tenList: List[Int] = List(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
-    val hunList: List[Int] = List(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29
-      , 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59
-      , 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89
-      , 90, 91, 92, 93, 94, 95, 96, 97, 98, 99)
+    val fivList: List[Int] = List.integers(0)(4)
+    val tenList: List[Int] = List.integers(0)(9)
+    val hunList: List[Int] = List.integers(0)(99)
+    val hunListReversed: List[Int] = List.integers(99)(0)
     val listOfLists: List[List[Int]]=List(List.Nil,oneList,fivList,tenList)
 
     log("****** Chapter_03 ******")
@@ -446,13 +470,27 @@ object nith_Chapter_03 {
       + FinTree.stringLength(fTree("456", List(fTree("123", List(fTree("ab", List(fTree("7", Nil))), fTree("X", Nil))), fTree("abcdef", List(fTree("7", Nil)))))))
 
     println("\n*** Additional staff ***")
-    log("List.fill(-1)(\"*\")               = "+List.myString(List.fill(-1)("*")))
-    log("List.fill(0)(\"*\")                = "+List.myString(List.fill(0)("*")))
-    log("List.fill(1)(\"*\")                = "+List.myString(List.fill(1)("*")))
-    log("List.fill(3)(\"*\")                = "+List.myString(List.fill(3)("*")))
-    log("List.shovel(tenList)(fivList)(3) = "+List.myString(List.shovel(tenList)(fivList)(3)))
-    log("List.halve(tenList)              = "+List.myString(List.halve(tenList)))
-    log("List.halve(Nil)                  = "+List.myString(List.halve(Nil)))
-    log("List.halve(List(\"a\"))            = "+List.myString(List.halve(List("a"))))
+    log("fill(-1)(\"*\")               = "+List.myString(List.fill(-1)("*")))
+    log("fill(0)(\"*\")                = "+List.myString(List.fill(0)("*")))
+    log("fill(1)(\"*\")                = "+List.myString(List.fill(1)("*")))
+    log("fill(3)(\"*\")                = "+List.myString(List.fill(3)("*")))
+    log("shovel(tenList)(fivList)(3) = "+List.myString(List.shovel(tenList)(fivList)(3)))
+    log("halve(tenList)              = "+List.myString(List.halve(tenList)))
+    log("halve(Nil)                  = "+List.myString(List.halve(Nil)))
+    log("halve(List(\"a\"))            = "+List.myString(List.halve(List("a"))))
+    log("integers(0)(0)              = "+List.myString(List.integers(0)(0)))
+    log("integers(42)(0)             = "+List.myString(List.integers(42)(0)))
+    log("integers(0)(42)             = "+List.myString(List.integers(0)(42)))
+    log("merge(List(0))(List(1))(n=>m=>n<m) = "+List.myString(List.merge[Int](List(0))(List(1))(n=>m=>n<m)))
+    log("merge(fivList)(tenList)(n=>m=>n<m) = "+List.myString(List.merge[Int](fivList)(tenList)(n=>m=>n<m)))
+    log("merge(fivList)(dblList)(n=>m=>n<m) = "+List.myString(List.merge[Double](List.map(fivList)(_.toDouble))(dblList)(n=>m=>n<m)))
+    log("merge(dblList)(fivList)(n=>m=>n<m) = "+List.myString(List.merge[Double](dblList)(List.map(fivList)(_.toDouble))(n=>m=>n<m)))
+    log("merge(hunList)(hunList)(n=>m=>n<m) = "+List.myString(List.merge[Int](hunList)(hunList)(n=>m=>n<m)))
+    log("merge(listOfLists)(n=>m=>n<m)      = "+List.myString(List.merge[Int](listOfLists)(n=>m=>n<m)))
+    log("splitIntoReversedListOfSingletons[Int](tenList) = "+List.myString(List.splitIntoReversedListOfSingletons[Int](tenList)))
+    log("mergeSort[Int](tenList)(n=>m=>n<m) = "+List.myString(List.mergeSort[Int](hunList)(n=>m=>n<m)))
+    log("mergeSort[Int](tenList)(n=>m=>n<m) = "+List.myString(List.mergeSort[Int](hunListReversed)(n=>m=>n<m)))
+
+
   }
 }
