@@ -106,12 +106,12 @@ object Ch08 {
       final def &&(p: Prop): Prop = {
         def newRunner(tc: TestCases, r: RNG): Result = this.run(tc, r) match {
           case Passed => p.run(tc, r) match {
-            case Falsified(rFail, rSuc) => new Falsified("LET prop passed but RIGHT Prop falsified: " + rFail, rSuc)
+            case Falsified(rFail, rSuc) => new Falsified("Prop.&&: LEFT prop passed but RIGHT Prop falsified: " + rFail, rSuc)
             case Passed => Passed
           }
           case Falsified(lFail, lSuc) => p.run(tc, r) match {
-            case Passed => new Falsified("RIGHT Prop passed but LEFT Prop falsified: " + lFail, lSuc)
-            case Falsified(rFail, rSuc) => new Falsified("BOTH Props falsified: (LEFT prop after " + lSuc + " test cases: " + lFail + ", RIGHT prop after " + rSuc + " test cases: " + rFail + ")", lSuc.min(rSuc))
+            case Passed => new Falsified("Prop.&&: RIGHT Prop passed but LEFT Prop falsified: " + lFail, lSuc)
+            case Falsified(rFail, rSuc) => new Falsified("Prop.&&: BOTH Props falsified: (LEFT prop after " + lSuc + " test cases: " + lFail + ", RIGHT prop after " + rSuc + " test cases: " + rFail + ")", lSuc.min(rSuc))
           }
         }
         Prop(newRunner)
@@ -122,7 +122,7 @@ object Ch08 {
           case Passed => Passed
           case Falsified(lFail, lSuc) => p.run(tc, r) match {
             case Passed => Passed
-            case Falsified(rFail, rSuc) => new Falsified("BOTH Props falsified: (LEFT prop after " + lSuc + " test cases: " + lFail + ", RIGHT prop after " + rSuc + " test cases: " + rFail + ")", lSuc.max(rSuc))
+            case Falsified(rFail, rSuc) => new Falsified("Prop.||: BOTH Props falsified: (LEFT prop after " + lSuc + " test cases: " + lFail + ", RIGHT prop after " + rSuc + " test cases: " + rFail + ")", lSuc.max(rSuc))
           }
         }
         Prop(newRunner)
@@ -158,10 +158,10 @@ object Ch08 {
 
       def listOfN(size: SGen[Int]): SGen[List[A]] = new SGen[List[A]](n => this.forSize(n).listOfN(size.forSize(n)))
 
-      // 8.12 Implement a listOf combinator that doesn’t accept an explicit size. It should return an SGen instead of a
-      // Gen. The implementation should generate lists of the requested size.
     }
 
+    // 8.12 Implement a listOf combinator that doesn’t accept an explicit size. It should return an SGen instead of a
+    // Gen. The implementation should generate lists of the requested size.
     def listOf[A](g: Gen[A]): SGen[List[A]] = new SGen[List[A]](n => g.listOfN(unit(n)))
 
     // 8.10 Implement helper functions for converting Gen to SGen. You can add this as a method on Gen.
@@ -184,12 +184,12 @@ object Ch08 {
       final def &&(p: Prop): Prop = {
         def newRunner(ms: MaxSize, tc: TestCases, r: RNG): Result = this.run(ms, tc, r) match {
           case Passed => p.run(ms, tc, r) match {
-            case Falsified(rFail, rSuc) => new Falsified("LET prop passed but RIGHT Prop falsified: " + rFail, rSuc)
+            case Falsified(rFail, rSuc) => new Falsified("Prop.&&: LET prop passed but RIGHT Prop falsified: " + rFail, rSuc)
             case Passed => Passed
           }
           case Falsified(lFail, lSuc) => p.run(ms, tc, r) match {
-            case Passed => new Falsified("RIGHT Prop passed but LEFT Prop falsified: " + lFail, lSuc)
-            case Falsified(rFail, rSuc) => new Falsified("BOTH Props falsified: (LEFT prop after " + lSuc + " test cases: " + lFail + ", RIGHT prop after " + rSuc + " test cases: " + rFail + ")", lSuc.min(rSuc))
+            case Passed => new Falsified("Prop.&&: RIGHT Prop passed but LEFT Prop falsified: " + lFail, lSuc)
+            case Falsified(rFail, rSuc) => new Falsified("Prop.&&: BOTH Props falsified: (LEFT prop after " + lSuc + " test cases: " + lFail + ", RIGHT prop after " + rSuc + " test cases: " + rFail + ")", lSuc.min(rSuc))
           }
         }
         Prop(newRunner)
@@ -200,7 +200,7 @@ object Ch08 {
           case Passed => Passed
           case Falsified(lFail, lSuc) => p.run(ms, tc, r) match {
             case Passed => Passed
-            case Falsified(rFail, rSuc) => new Falsified("BOTH Props falsified: (LEFT prop after " + lSuc + " test cases: " + lFail + ", RIGHT prop after " + rSuc + " test cases: " + rFail + ")", lSuc.max(rSuc))
+            case Falsified(rFail, rSuc) => new Falsified("Prop.||: BOTH Props falsified: (LEFT prop after " + lSuc + " test cases: " + lFail + ", RIGHT prop after " + rSuc + " test cases: " + rFail + ")", lSuc.max(rSuc))
           }
         }
         Prop(newRunner)
@@ -218,7 +218,7 @@ object Ch08 {
             rng: RNG = SimpleRNG(System.currentTimeMillis))
     : String =
       p.run(maxSize, testCases, rng) match {
-        case Falsified(msg, n) => "Falsified after "+n+" passed tests:\n $msg"
+        case Falsified(msg, n) => "Falsified after "+n+" passed tests:\n"+msg
         case Passed => "Passed " +testCases+" tests."
       }
 
@@ -227,13 +227,14 @@ object Ch08 {
 
     def forAll[A](g: Int => Phase2.Gen[A])(f: A => Boolean): Prop = Prop {
       (max, n, rng) =>
-        val casesPerSize: Int = (n + (max - 1)) / max
+        val casesPerSize: Int = (n + max) / (max.abs+1)
         val propSequence: Int => Phase2.Prop = i => Phase2.forAll(g(i))(f)
-        val props: List[Phase2.Prop] = List.map(List.integers(0)(n.min(max) + 1))(propSequence)
-        val propsNew: List[Prop] = List.map(props)(p => Prop {
+        val propPhase2List: List[Phase2.Prop] = List.map(List.integers(0)(n.min(max)))(propSequence)
+        val propPhase3List: List[Prop] = List.map(propPhase2List)(p => Prop {
           (_, _, rng) => p.run(casesPerSize, rng)
         })
-        val prop: Prop = List.foldLeft[Prop, Prop](propsNew, alwaysPassed)(prop1 => prop2 => prop2.&&(prop1))
+        val prop: Prop = List.foldLeft[Prop, Prop](propPhase3List, alwaysPassed)(prop1 => prop2 => prop2.&&(prop1))
+        log("...forAll: max="+max+"  n="+n+"    casesPerSize="+casesPerSize+"   propPhase2List.size="+List.length(propPhase2List)+"   propPhase3List.size="+List.length(propPhase3List))
         prop.run(max, n, rng)
     }
 
@@ -314,6 +315,17 @@ object nith_Chapter_08 extends App {
   val maxProp : Prop = Ch08.Phase3.forAll[List[Int]](listOf(smallInt))(maxIsTheBiggest)
   log("maxIsTheBiggest(List.Nil) = " + maxIsTheBiggest(List.Nil))
   log("run(maxProp) = " + run(maxProp))
+
+  println("\n** Exercise 8.13 **")
+  println("** Write a property to verify the behavior of List.sorted ...")
+  log("run(forAll[List[Int]](listOf(smallInt))(List.isSorted),0) = " + run(Ch08.Phase3.forAll[List[Int]](listOf(smallInt))(List.isSorted),0))
+  log("run(forAll[List[Int]](listOf(smallInt))(List.isSorted),1) = " + run(Ch08.Phase3.forAll[List[Int]](listOf(smallInt))(List.isSorted),1))
+  log("run(forAll[List[Int]](listOf(smallInt))(List.isSorted),1) = " + run(Ch08.Phase3.forAll[List[Int]](listOf(smallInt))(List.isSorted),10))
+  log("run(forAll[List[Int]](listOf(smallInt))(l=>List.isSorted(List.mergeSort(l))) = " + run(Ch08.Phase3.forAll[List[Int]](listOf(smallInt))(l => List.isSorted(List.mergeSort(l)))))
+//  log("run(forAll[List[Int]](listOf(smallInt))(l=>List.isSorted(List.mergeSort(l))) = " + run(Ch08.Phase3.forAll[List[Int]](listOf(smallInt))(l => mergeSortPar[Int](l)(List.mergeSortPar(l)))))
+
+//  mergeSortPar[Int](List.integers(99)(0))(n => m => n < m)(esUnlimited).get))
+
 
   println("*** Not finished yet ***")
 

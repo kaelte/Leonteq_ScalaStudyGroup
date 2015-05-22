@@ -217,7 +217,6 @@ object Ch06 {
       this.flatMap[C](g)
     }
 
-    // I know that this is inefficient but it is beautiful.
     final def map[B](f: A => B): State[S, B] = map2[A, B](this)((a1, a2) => f(a1))
 
   }

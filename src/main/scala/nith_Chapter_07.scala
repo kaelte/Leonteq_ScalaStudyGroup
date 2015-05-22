@@ -239,7 +239,9 @@ object Ch07 {
         }
       }
 
-    }
+      def mergeSortPar(ints: List[Int]): Par[List[Int]] = mergeSortPar[Int](ints)(i => j => i<j)
+
+      }
 
   }
 
@@ -319,7 +321,7 @@ object nith_Chapter_07 extends App {
   println("intListList(4)(8) = " + List.myString(intListList(4)(8)))
   println("twoPar(es1).get    = " + twoPar(es1).get)
   println("threePar(es1).get  = " + threePar(es1).get)
-  println("intSign: (Boolean, Int) => Int   =   (p, n) => if (p) n else 0 - n")
+  println("intSign: (Boolean, Int) => Int   =   (order, n) => if (order) n else 0 - n")
 
 
   println("\n** Exercises 7.3 and 7.4 with timeOut exceptions **")
@@ -391,8 +393,8 @@ object nith_Chapter_07 extends App {
   log("flatMap2(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap2(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get + "\n")
 
   println("\n** Additional Stuff **")
-  log("mergeSortPar[Int](List.integers(0)(99))(n=>m=>n<m)(esUnlimited).get = " + List.myString(mergeSortPar[Int](List.integers(0)(99))(n => m => n < m)(esUnlimited).get))
-  log("mergeSortPar[Int](List.integers(99)(0))(n=>m=>n<m)(esUnlimited).get = " + List.myString(mergeSortPar[Int](List.integers(99)(0))(n => m => n < m)(esUnlimited).get))
+  log("mergeSortPar(List.integers(0)(99))(esUnlimited).get = " + List.myString(mergeSortPar(List.integers(0)(99))(esUnlimited).get))
+  log("mergeSortPar(List.integers(99)(0))(esUnlimited).get = " + List.myString(mergeSortPar(List.integers(99)(0))(esUnlimited).get))
 
   log("********************************************************************\n")
   log("*** Shutting down the executor services es1, es2 and esunlimited ***\n")
