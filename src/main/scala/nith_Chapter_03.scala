@@ -117,6 +117,10 @@ object List {
 
   def max(ints: List[Int]) = max[Int](ints)(i => j => i < j)(Int.MinValue)
 
+  def min[A](as: List[A])(order: A => A => Boolean)(top: A) = foldLeft(as, top)(a => interim => if (order(a)(interim)) a else interim)
+
+  def min(ints: List[Int]) = min[Int](ints)(i => j => i < j)(Int.MaxValue)
+
   def length[A](as: List[A]): Int = foldLeft(as, 0)(a => y => 1 + y)
 
   //exercise 3.12
@@ -207,6 +211,14 @@ object List {
     case _ => false
   }
 
+  @tailrec
+  final def find[A](as: List[A])(p: A => Boolean): Option[A] = as match {
+      case Cons(h, t) if p(h) => Some(h)
+      case Cons(h, t) if !p(h) => find(t)(p)
+      case _ => None
+  }
+
+
   // needed for chapter 6
   def fill[A](n: Int)(a: A): List[A] = {
     @tailrec
@@ -228,6 +240,7 @@ object List {
   def split[A](as: List[A])(n: Int): (List[A], List[A]) = shovel[A](as)(Nil)(n)
 
   def halve[A](as: List[A]): (List[A], List[A]) = split(as)(length(as) / 2)
+
 
   // needed for chapter 8
   final def integers(from: Int)(to: Int): List[Int] = {
@@ -268,6 +281,10 @@ object List {
 
   def isSorted(ints: List[Int]): Boolean = isSorted[Int](ints)(i => j => i <= j)
 
+  final def unfold[A, S](z: S)(f: S => Option[(A, S)]): List[A] = f(z) match {
+    case Some(x) => Cons[A](x._1, unfold(x._2)(f))
+    case None => Nil
+  }
 }
 
 sealed trait Tree[+A]
