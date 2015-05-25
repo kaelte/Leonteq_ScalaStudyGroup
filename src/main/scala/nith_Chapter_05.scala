@@ -87,8 +87,11 @@ object Ch05 {
 
     @tailrec
     final def find(p: A => Boolean): Option[A] = this match {
-      case Cons(h, t) if p(h()) => Some(h())
-      case Cons(h, t) if !p(h()) => t().find(p)
+      case Cons(h, t) => {
+        // We want to avoid the double calculation of h()
+        val headValue : A = h()
+        if (p(headValue)) Some(headValue) else t().find(p)
+      }
       case _ => None
     }
 
@@ -636,6 +639,11 @@ object nith_Chapter_05 extends App {
     + fiveStream.streamCons(Ch05.Stream(tenStream.drop(2), oneStream, fiveStream.drop(1), oneStream, fiveStream, tenStream)).myString)
   log("identityStream.streamConsFoldRight(streamOfInfiniteStreams) = "
     + identityStream.streamCons(streamOfInfiniteStreams))
+
+  println("\n** streamAppend **")
+  log("identityStream.find = "+ identityStream.find(n => {log("...testing "+n+"==5")
+    n==5
+  }))
 
   println("\n***** Done ***** ")
 

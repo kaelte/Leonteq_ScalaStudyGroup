@@ -147,36 +147,13 @@ object Ch08 {
           val lazyIdentiy: (=> Int) => Int = n => n
           val indexedAstream: Stream[(A, Int)] = randomStream[A](aGen)(rng).zip[Int](Stream(lazyIdentiy).take(n))
           val mapli: (=> Tuple2[A, Int]) => Result = x => try {
-            val testResult: Boolean = P(x._1)
-            if (testResult) Passed else Falsified(x._1.toString, x._2)
-          } catch {
-            case e: Exception => Falsified(buildMsg(x._1, e), x._2)
-          }
-          val resultList: List[Result] = indexedAstream.map[Result](mapli).toList
-          //        log("...Phase2.forAll: n="+n+" indexedAstream.size="+List.length(indexedAstream.toList)+" resultStream.size="+List.length(resultList)
-          //           +"\n                                                 resultStream="+List.myString(resultList))
-          List.find[Result](resultList)(_.isFalsified).getOrElse(Passed)
-        }
-    }
-
-    def forAllStream[A](aGen: Gen[A])(P: A => Boolean): Prop = Prop {
-      (n, rng) =>
-        {
-          val lazyIdentiy: (=> Int) => Int = n => n
-          val indexedAstream: Stream[(A, Int)] = randomStream[A](aGen)(rng).zip[Int](Stream(lazyIdentiy).take(n))
-          lazy val mapli: (=> Tuple2[A, Int]) => Result = x => try {
             lazy val testResult: Boolean = P(x._1)
             if (testResult) Passed else Falsified(x._1.toString, x._2)
           } catch {
             case e: Exception => Falsified(buildMsg(x._1, e), x._2)
           }
-          val result: Result = indexedAstream.map[Result](mapli).find(_.isFalsified).getOrElse(Passed)
-
-          // QUESTION:
-          // Despite all the laziness, forAllStream causes the tests to be executed twice
-          // but in contrast to forAll only until the first failing case.
-          // How can we avoid the double testing ?
-          result
+          val resultOption: Option[Result] = indexedAstream.map[Result](mapli).find(_.isFalsified)
+          resultOption.getOrElse(Passed)
         }
     }
 
@@ -395,24 +372,6 @@ object nith_Chapter_08 extends App {
     + run(Ch08.Phase3.forAll[List[Int]](intListGen)(l => List.isSorted(Par.mergeSortPar(l)(esUnlimited).get))))
 
   println("*** Not finished yet ***")
-
-  println("\n****** QUESTIONS ******")
-
-  println("\nDespite all the laziness, forAllStream causes the tests to be executed twice")
-  println("but in contrast to forAll only until the first failing case.")
-  println("How can we avoid the double testing ?")
-  println()
-  log("Phase2.forAll = "
-    + Ch08.Phase2.forAll[List[Int]](intListGen(2))(l => {
-      println("...testing l=" + List.myString(l))
-      List.sum(l) < 178803790 + 758674372 + 1
-    }).run(4, SimpleRNG(0)))
-  println()
-  log("Phase2.forAllStream = "
-    + Ch08.Phase2.forAllStream[List[Int]](intListGen(2))(l => {
-      println("...testing l=" + List.myString(l))
-      List.sum(l) < 178803790 + 758674372 + 1
-    }).run(4, SimpleRNG(0)))
 
 }
 
