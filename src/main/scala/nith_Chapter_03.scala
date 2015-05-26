@@ -1,5 +1,5 @@
 import scala.annotation.tailrec
-import util.log
+import util._
 
 sealed trait List[+A]
 
@@ -26,9 +26,7 @@ object List {
   // Implement the function tail for removing the first element of a List. Note that the
   // function takes constant time. What are different choices you could make in your
   // implementation if the List is Nil? We’ll return to this question in the next chapter.
-  def head[A](l: List[A]): A = l match {
-    case Cons(x, t) => x
-  }
+  def head[A](l: Cons[A]): A = l match {case Cons(x, t) => x}
 
   def tail[A](l: List[A]): List[A] = l match {
     case Nil => Nil
@@ -48,6 +46,15 @@ object List {
     case _ if n < 1 => as
     case Cons(x, t) => drop(t, n - 1)
   }
+
+  def dropMod[A](as: Cons[A])(n: Int): Cons[A] = {
+    val nModl : Int = mod(n)(List.length(as))
+    as match {
+      case Cons(a1, Cons(a2, aTail)) if nModl > 0 => dropMod(Cons(a2, aTail))(nModl)
+      case _ => as
+    }
+  }
+
 
   //exercise 3.5
   @tailrec

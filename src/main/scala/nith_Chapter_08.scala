@@ -1,7 +1,7 @@
 import util.log
 import List._
-import Ch04_Option.{ Option, Some }
-import Ch05.{ Stream, unfold, unfold2 }
+import Ch04_Option.{Option, Some}
+import Ch05.{Stream, unfold, unfold2}
 import Ch06._
 import Ch07.Phase3._
 
@@ -51,6 +51,7 @@ object Ch08 {
     // 8.4 Implement Gen.choose using this representation of Gen. It should generate integers in the range
     // start to stopExclusive. Feel free to use functions you’ve already written.
     final def intGen: Gen[Int] = new Gen[Int](intRandState)
+
     final def choose(start: Int, stopExclusive: Int): Gen[Int] = new Gen[Int](nonNegativeLessThanState(stopExclusive - start).map[Int](_ + start))
 
     final def choose(start: Double, stopExclusive: Double): Gen[Double] = new Gen[Double](doubleRandState.map[Double](x => (stopExclusive - start) * x + start))
@@ -97,6 +98,7 @@ object Ch08 {
 
     case class Falsified(failure: FailedCase, successes: SuccessCount) extends Result {
       final def isFalsified = true
+
       //      final def falsifiedString : String = "(failure="+failure+",successes="+successes+")"
     }
 
@@ -133,7 +135,9 @@ object Ch08 {
     }
 
     def randomStream[A](g: Gen[A])(rng: RNG): Stream[A] = unfold(rng)(rng => Some(g.sample.run(rng)))
+
     def randomList[A](g: Gen[A])(rng: RNG)(size: Int): List[A] = randomStream[A](g)(rng).take(size).toList
+
     def randomIntList(size: Int): List[Int] = randomList[Int](intGen)(SimpleRNG(System.currentTimeMillis))(size)
 
     def buildMsg[A](s: A, e: Exception): String =
@@ -142,19 +146,18 @@ object Ch08 {
         s"stack trace:\n ${e.getStackTrace.mkString("\n")}"
 
     def forAll[A](aGen: Gen[A])(P: A => Boolean): Prop = Prop {
-      (n, rng) =>
-        {
-          val lazyIdentiy: (=> Int) => Int = n => n
-          val indexedAstream: Stream[(A, Int)] = randomStream[A](aGen)(rng).zip[Int](Stream(lazyIdentiy).take(n))
-          val mapli: (=> Tuple2[A, Int]) => Result = x => try {
-            lazy val testResult: Boolean = P(x._1)
-            if (testResult) Passed else Falsified(x._1.toString, x._2)
-          } catch {
-            case e: Exception => Falsified(buildMsg(x._1, e), x._2)
-          }
-          val resultOption: Option[Result] = indexedAstream.map[Result](mapli).find(_.isFalsified)
-          resultOption.getOrElse(Passed)
+      (n, rng) => {
+        val lazyIdentiy: (=> Int) => Int = n => n
+        val indexedAstream: Stream[(A, Int)] = randomStream[A](aGen)(rng).zip[Int](Stream(lazyIdentiy).take(n))
+        val mapli: (=> Tuple2[A, Int]) => Result = x => try {
+          lazy val testResult: Boolean = P(x._1)
+          if (testResult) Passed else Falsified(x._1.toString, x._2)
+        } catch {
+          case e: Exception => Falsified(buildMsg(x._1, e), x._2)
         }
+        val resultOption: Option[Result] = indexedAstream.map[Result](mapli).find(_.isFalsified)
+        resultOption.getOrElse(Passed)
+      }
     }
 
     case class SGen[+A](forSize: Int => Gen[A]) {
@@ -175,7 +178,7 @@ object Ch08 {
 
   object Phase3 {
 
-    import Phase2.{ Gen, Passed, Falsified, Result, SGen, TestCases, unit }
+    import Phase2.{Gen, Passed, Falsified, Result, SGen, TestCases, unit}
 
     type MaxSize = Int
 
@@ -220,11 +223,11 @@ object Ch08 {
     def alwaysPassed: Prop = new Prop((_, _, _) => Passed)
 
     def run(
-      p: Prop,
-      maxSize: Int = 128,
-      testCases: Int = 3 * 128,
-      rng: RNG = SimpleRNG(System.currentTimeMillis)
-    ): String =
+             p: Prop,
+             maxSize: Int = 128,
+             testCases: Int = 3 * 128,
+             rng: RNG = SimpleRNG(System.currentTimeMillis)
+             ): String =
       p.run(maxSize, testCases, rng) match {
         case Falsified(msg, n) => "Falsified after " + n + " passed tests:\n" + msg
         case Passed => "Passed " + testCases + " tests."
@@ -254,7 +257,7 @@ object Ch08 {
           (_, _, rng) => p.run(casesPerSize, rng)
         })
         val prop: Prop = List.foldLeft[Prop, Prop](propPhase3List, alwaysPassed)(prop1 => prop2 => prop2.&&(prop1))
-        log("...Phase3.forAllAll: max=" + max + "  numTestCases=" + numTestCases + "    casesPerSize=" + casesPerSize + "   propPhase2List.size=" + List.length(propPhase2List) + "   propPhase3List.size=" + List.length(propPhase3List))
+//        log("...Phase3.forAllAll: max=" + max + "  numTestCases=" + numTestCases + "    casesPerSize=" + casesPerSize + "   propPhase2List.size=" + List.length(propPhase2List) + "   propPhase3List.size=" + List.length(propPhase3List))
         prop.run(max, numTestCases, rng)
     }
 
@@ -264,8 +267,8 @@ object Ch08 {
 
 object nith_Chapter_08 extends App {
 
-  import Ch08.Phase2.{ boolean, choose, forAll, Gen, intGen, listOf, listOfN, Passed, randomIntList, Result, SGen, union, unit, weighted }
-  import Ch08.Phase3.{ Prop, run }
+  import Ch08.Phase2.{boolean, choose, forAll, Gen, intGen, listOf, listOfN, Passed, randomIntList, Result, SGen, union, unit, weighted}
+  import Ch08.Phase3.{Prop, run}
   import java.util.concurrent._
   import java.util.concurrent.atomic.AtomicInteger
 
@@ -351,15 +354,36 @@ object nith_Chapter_08 extends App {
   log("List.isSorted(List.Nil) = " + List.isSorted(List.Nil))
   println("\n* Testing predicate List.isSorted for thre recursive built-up of lists using forAllAll *\n")
   println("* A few cases with logging *")
-  val loggedTest: Boolean => Int => List[Int] => Boolean = debug => n => l => {
-    val result: Boolean = List.isSorted(Cons(n, l)) == (n <= List.min(l) && List.isSorted(l))
-    if (debug) log("... test function with \tl=" + List.myString(l) + "\tn=" + n + "\tList.min(l)=" + List.min(l) + "\tList.isSorted(l)=" + List.isSorted(l) + "\tn <= List.min(l)=" + (n <= List.min(l)) + ":\tList.isSorted(" + List.myString(Cons(n, l)) + ")=" + List.isSorted(Cons(n, l)) + ":\t" + result)
+  val loggedTest1: Boolean => Int => List[Int] => Boolean = debug => n => l => {
+    val result: Boolean = List.isSorted(Cons(n, l)) == ( n <= List.min(l) && List.isSorted(l) )
+    if (debug) log("... test function with \tl=" + List.myString(l) + "\tn=" + n + "\tList.min(l)=" + List.min(l)
+      + "\tList.isSorted(l)=" + List.isSorted(l) + "\tn <= List.min(l)=" + (n <= List.min(l))
+      + ":\tList.isSorted(" + List.myString(Cons(n, l)) + ")=" + List.isSorted(Cons(n, l)) + ":\t" + result)
     result
   }
-  log("run(forAllAll[Int](_=>intGen)(n=> forAll[List[Int]](intListGen)(l => n<List.min(l))),2,4) = " + run(Ch08.Phase3.forAllAll[Int](_ => intGen)(n => Ch08.Phase3.forAll[List[Int]](intListGen)(loggedTest(true)(n))), 2, 6))
+  log("run(forAllAll[Int](_=>intGen)(n=> forAll[List[Int]](intListGen)(List.isSorted(Cons(n, l)) == (n <= List.min(l) && List.isSorted(l)))),2,4) = "
+    + run(Ch08.Phase3.forAllAll[Int](_ => intGen)(n => Ch08.Phase3.forAll[List[Int]](intListGen)(loggedTest1(true)(n))), 2, 6))
 
   println("* Many cases without logging *")
-  log("run(forAllAll[Int](_=>intGen)(n=> forAll[List[Int]](intListGen)(l => n<List.min(l))),2,4) = " + run(Ch08.Phase3.forAllAll[Int](_ => intGen)(n => Ch08.Phase3.forAll[List[Int]](intListGen)(loggedTest(false)(n))), 10, 100))
+  log("run(forAllAll[Int](_=>intGen)(n=> forAll[List[Int]](intListGen)(List.isSorted(Cons(n, l)) == (n <= List.min(l) && List.isSorted(l)))),2,4) = "
+    + run(Ch08.Phase3.forAllAll[Int](_ => intGen)(n => Ch08.Phase3.forAll[List[Int]](intListGen)(loggedTest1(false)(n))), 10, 100))
+
+  println("* Different test for isSorted using 2 forAllAll *")
+  val loggedTest2: Boolean => Int => Int => List[Int] => Boolean = debug => n => m => l => {
+    val result: Boolean = List.isSorted(Cons(n,(Cons(m, l)))) == (n <= m && List.isSorted(Cons(m, l)) )
+    if (debug) log("... test function with \tl=" + List.myString(l) + "\tn=" + n  + "\tm=" + m
+      + "\tList.isSorted(Cons(m, l))=" + List.isSorted(Cons(m, l)) + "\tn <= m=" + (n <= m)
+      + ":\tList.isSorted(" + List.myString(Cons(n,(Cons(m, l)))) + ")=" + List.isSorted(Cons(n,(Cons(m, l)))) + ":\t" + result)
+    result
+  }
+  log("XXX = "
+    + run(Ch08.Phase3.forAllAll[Int](_ => intGen)(i =>
+    Ch08.Phase3.forAllAll[Int](_ => intGen)(j =>
+      Ch08.Phase3.forAll[List[Int]](intListGen)(loggedTest2(true)(i)(j)))), 2, 4))
+  log("XXX = "
+    + run(Ch08.Phase3.forAllAll[Int](_ => intGen)(i =>
+    Ch08.Phase3.forAllAll[Int](_ => intGen)(j =>
+      Ch08.Phase3.forAll[List[Int]](intListGen)(loggedTest2(false)(i)(j)))), 10, 100))
 
   println("* Every list of size 0 and 1 satisfyies predicate List.isSorted but not so lists of size 2 *")
   log("run(forAll[List[Int]](intListGen)(List.isSorted),0) = " + run(Ch08.Phase3.forAll[List[Int]](intListGen)(List.isSorted), 0))
