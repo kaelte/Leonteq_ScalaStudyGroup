@@ -49,6 +49,7 @@ object List {
 
   def dropMod[A](as: Cons[A])(n: Int): Cons[A] = {
     val nModl : Int = mod(n)(List.length(as))
+//    logg("...dropMod: as="+myString(as)+"\tn="+n+"\tList.length(as)="+List.length(as)+"\tnModl")(nModl)
     as match {
       case Cons(a1, Cons(a2, aTail)) if nModl > 0 => dropMod(Cons(a2, aTail))(nModl)
       case _ => as

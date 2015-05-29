@@ -30,10 +30,6 @@ object Ch08 {
     type FailedCase = String
     type SuccessCount = Int
 
-    /*    trait Prop {
-          def check: Either[(FailedCase, SuccessCount), SuccessCount]
-        }*/
-
     case class Gen[+A](sample: State[RNG, A]) {
       // 8.6 Implement flatMap, and then use it to implement this more dynamic version of listOfN.
       def flatMap[B](f: A => Gen[B]): Gen[B] = new Gen[B](this.sample.flatMap[B](f(_).sample))
@@ -273,12 +269,16 @@ object Ch08 {
         prop.run(max, numTestCases, rng)
     }
 
+    def check(p: => Boolean): Prop = Prop { (_, _, _) =>
+      if (p) Proved else Falsified("()", 0)
+    }
   }
 
 }
 
 object nith_Chapter_08 extends App {
 
+  import Ch07.Phase3.Par._
   import Ch08.Phase2.{boolean, choose, forAll, Gen, intGen, listOf, listOfN, Passed, randomIntList, Result, SGen, union, unit, weighted}
   import Ch08.Phase3.{Prop, Proved, run}
   import java.util.concurrent._
@@ -401,6 +401,10 @@ object nith_Chapter_08 extends App {
   println("* Every list sorted using mergeSort or mergeSortPar satisfies predicate List.isSorted *")
   logg("run(forAll[List[Int]](intListGen)(l=>List.isSorted(List.mergeSort(l)))")(run(Ch08.Phase3.forAll[List[Int]](intListGen)(l => List.isSorted(List.mergeSort(l)))))
   logg("run(forAll[List[Int]](intListGen)(l=>List.isSorted(Par.mergeSortPar(l)(esUnlimited).get)))")(run(Ch08.Phase3.forAll[List[Int]](intListGen)(l => List.isSorted(Par.mergeSortPar(l)(esUnlimited).get))))
+
+  println("\n* Proofing predicates *")
+  logg("run(check(List.isSorted(List.Nil)))")(run(Ch08.Phase3.check(List.isSorted(List.Nil))))
+  logg("run(Ch08.Phase3.check(equal(Par.unit(1 + 2))(Par.unit(3))(esUnlimited).get)")(run(Ch08.Phase3.check(equal(Par.unit(1 + 2))(Par.unit(3))(esUnlimited).get)))
 
   println("*** Not finished yet ***")
 

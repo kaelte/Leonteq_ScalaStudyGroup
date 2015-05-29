@@ -203,7 +203,7 @@ object Ch07 {
       // 7.11 Implement choiceN and then choice in terms of choiceN.
       def choiceN[A](n: Par[Int])(choices: List.Cons[Par[A]]): Par[A] = es => List.head(List.dropMod(choices)(n(es).get))(es)
 
-      def choice[A](cond: Par[Boolean])(t: Par[A], f: Par[A]): Par[A] = choiceN(map[Boolean, Int](cond)(if (_) 1 else 0))(List.Cons(f,List.Cons(t,List.Nil)))
+      def choice[A](cond: Par[Boolean])(t: Par[A], f: Par[A]): Par[A] = choiceN(map[Boolean, Int](cond)(if (_) 1 else 0))(List.Cons(f, List.Cons(t, List.Nil)))
 
       def sumProdMaxIntList(ints: List[Int])(selector: Int): Par[Int] = choiceN(lazyUnit(selector))(List.Cons(sumIntList(ints), List(prodIntList(ints), maxIntList(ints))))
 
@@ -237,9 +237,11 @@ object Ch07 {
         }
       }
 
-      def mergeSortPar(ints: List[Int]): Par[List[Int]] = mergeSortPar[Int](ints)(i => j => i<j)
+      def mergeSortPar(ints: List[Int]): Par[List[Int]] = mergeSortPar[Int](ints)(i => j => i < j)
 
-      }
+      def equal[A](p: Par[A])(p2: Par[A]): Par[Boolean] = Par.map2(p, p2)(_ == _)
+
+    }
 
   }
 
@@ -312,7 +314,7 @@ object nith_Chapter_07 extends App {
   lazy val twoPar: Ch07.Phase3.Par[Int] = unit(2)
   lazy val threePar: Ch07.Phase3.Par[Int] = unit(3)
   lazy val infinitePar: Ch07.Phase3.Par[Boolean] = execService => execService.submit[Boolean](nonTerminatingCall)
-/*
+
   println("****** Chapter_07 ******")
   println("Long.MaxValue     = %s".format(Long.MaxValue))
   println("intList(4)(8)     = " + List.myString(intList(4)(8)))
@@ -363,41 +365,37 @@ object nith_Chapter_07 extends App {
   log("maxIntList(List(42))(esUnlimited).get                            = " + maxIntList(List(42))(esUnlimited).get)
   log("maxIntList(List(1,2,3,4,5,6,7,8,9,10))(esUnlimited).get          = " + maxIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))(esUnlimited).get)
   Thread.sleep(100)
-  */
+
+
   println("\n** Exercise 7.11 **")
   log("sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(0)(esUnlimited).get = " + sumProdMaxIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))(0)(esUnlimited).get)
   log("sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(1)(esUnlimited).get = " + sumProdMaxIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))(1)(esUnlimited).get)
   log("sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(2)(esUnlimited).get = " + sumProdMaxIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))(2)(esUnlimited).get)
   log("sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(3)(esUnlimited).get = " + sumProdMaxIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))(3)(esUnlimited).get)
-  /*
-    try {
-      log(sumProdMaxIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))(-1)(es1).get)
-    } catch {
-      case e: Exception => logException(e)("sumProdMaxIntList(List(1,2,3,4,5,6,7,8,9,10))(-1)(es1).get")
-    }
-    log("choice(unit(false))(sumIntList(List(1,2,3,4,5,6,7,8,9,10)),prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get = " + choice(unit(false))(sumIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)), prodIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)))(esUnlimited).get)
-    log("choice(unit(true)) (sumIntList(List(1,2,3,4,5,6,7,8,9,10)),prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get = " + choice(unit(true))(sumIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)), prodIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)))(esUnlimited).get)
 
-    println("\n** Exercise 7.13 **")
-    log("chooser(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + chooser(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
-    log("chooser(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + chooser(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
-    log("chooser(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + chooser(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("choice(unit(false))(sumIntList(List(1,2,3,4,5,6,7,8,9,10)),prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get = " + choice(unit(false))(sumIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)), prodIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)))(esUnlimited).get)
+  log("choice(unit(true)) (sumIntList(List(1,2,3,4,5,6,7,8,9,10)),prodIntList(List(1,2,3,4,5,6,7,8,9,10)))(esUnlimited).get = " + choice(unit(true))(sumIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)), prodIntList(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)))(esUnlimited).get)
 
-    println("\n** Exercise 7.14 **")
-    log("flatMap users \"inner\" join, i.e. to convert ppa:Par[Par[A]] to pa:Par[A] it calculates the inner Par[A] to A")
-    log("flatMap(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
-    log("flatMap(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
-    log("flatMap(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
-    log("flatMap2 users \"outer\" join, i.e. to convert ppa:Par[Par[A]] to pa:Par[A] it calculates the outer Par[Par[A]] to Par[A]")
-    log("flatMap2(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap2(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
-    log("flatMap2(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap2(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
-    log("flatMap2(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap2(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get + "\n")
+  println("\n** Exercise 7.13 **")
+  log("chooser(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + chooser(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("chooser(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + chooser(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("chooser(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + chooser(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
 
-    println("\n** Additional Stuff **")
-    log("mergeSortPar(List.integers(0)(99))(esUnlimited).get = " + List.myString(mergeSortPar(List.integers(0)(99))(esUnlimited).get))
-    log("mergeSortPar(List.integers(99)(0))(esUnlimited).get = " + List.myString(mergeSortPar(List.integers(99)(0))(esUnlimited).get))
-  */
-  log("********************************************************************\n")
+  println("\n** Exercise 7.14 **")
+  log("flatMap users \"inner\" join, i.e. to convert ppa:Par[Par[A]] to pa:Par[A] it calculates the inner Par[A] to A")
+  log("flatMap(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("flatMap(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("flatMap(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("flatMap2 users \"outer\" join, i.e. to convert ppa:Par[Par[A]] to pa:Par[A] it calculates the outer Par[Par[A]] to Par[A]")
+  log("flatMap2(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap2(unit(2))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("flatMap2(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap2(unit(5))(n => sumIntList(intList(n)(n)))(esUnlimited).get)
+  log("flatMap2(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get = " + flatMap2(unit(10))(n => sumIntList(intList(n)(n)))(esUnlimited).get + "\n")
+
+  println("\n** Additional Stuff **")
+  log("mergeSortPar(List.integers(0)(99))(esUnlimited).get = " + List.myString(mergeSortPar(List.integers(0)(99))(esUnlimited).get))
+  log("mergeSortPar(List.integers(99)(0))(esUnlimited).get = " + List.myString(mergeSortPar(List.integers(99)(0))(esUnlimited).get))
+  logg("equal(unit(1 + 2))(unit(3))(esUnlimited).get")(equal(unit(1 + 2))(unit(3))(esUnlimited).get)
+  println("\n****************************************************************************************************************************************\n")
   log("*** Shutting down the executor services es1, es2 and esunlimited ***\n")
   shutExecService(es1)
   shutExecService(es2)
