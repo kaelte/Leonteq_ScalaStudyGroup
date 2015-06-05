@@ -262,8 +262,8 @@ object Ch08 {
       (max, numTestCases, rng) =>
         val casesPerSize: Int = (numTestCases + max) / (max.abs + 1)
         val propSequence: Int => Phase2.Prop = i => Phase2.forAll(g(i))(P)
-        val propPhase2List: List[Phase2.Prop] = List.map(List.integers(0)(numTestCases.min(max)))(propSequence)
-        val propPhase3List: List[Prop] = List.map(propPhase2List)(p => Prop {
+        val propPhase2List: List[Phase2.Prop] = List.map[Int,Phase2.Prop](List.integers(0)(numTestCases.min(max)))(propSequence)
+        val propPhase3List: List[Prop] = List.map[Phase2.Prop,Phase3.Prop](propPhase2List)(p => Prop {
           (_, _, rng) => p.run(casesPerSize, rng)
         })
         val prop: Prop = List.foldLeft[Prop, Prop](propPhase3List, alwaysPassed)(prop1 => prop2 => prop2.&&(prop1))
@@ -274,8 +274,8 @@ object Ch08 {
       (max, numTestCases, rng) =>
         val casesPerSize: Int = (numTestCases + max) / (max.abs + 1)
         val propSequence: Int => Phase2.Prop = i => Phase2.forAll(g(i))(a => P(a).toBool(max)(numTestCases)(rng))
-        val propPhase2List: List[Phase2.Prop] = List.map(List.integers(0)(numTestCases.min(max)))(propSequence)
-        val propPhase3List: List[Prop] = List.map(propPhase2List)(p => Prop {
+        val propPhase2List: List[Phase2.Prop] = List.map[Int,Phase2.Prop](List.integers(0)(numTestCases.min(max)))(propSequence)
+        val propPhase3List: List[Prop] = List.map[Phase2.Prop,Phase3.Prop](propPhase2List)(p => Prop {
           (_, _, rng) => p.run(casesPerSize, rng)
         })
         val prop: Prop = List.foldLeft[Prop, Prop](propPhase3List, alwaysPassed)(prop1 => prop2 => prop2.&&(prop1))
