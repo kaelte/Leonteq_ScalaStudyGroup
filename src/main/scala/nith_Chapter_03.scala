@@ -30,6 +30,27 @@ sealed trait List[+A] {
   })
 
   def shrink: List[A] = shrink(a1 => a2 => a1 == a2)
+
+  final def takeWhile(p: A => Boolean): List[A] = {
+    // takes the initial segment as long as all its elements satisfy p
+    @tailrec
+    def go(as: List[A])(intRes: List[A]):List[A] = as match {
+        case Cons(h, t) => if (p(h)) go(t)(Cons(h, intRes)) else intRes
+        case _ => intRes
+      }
+    List.reverse(go(this)(Nil))
+  }
+
+  final def takeOnly(p: A => Boolean): List[A] = foldLeft[A, List[A]](List.reverse(this), Nil)(a => as => if (p(a)) Cons(a, as) else as)
+
+    @tailrec
+  final def exists(p: A => Boolean): Boolean = this match {
+    case Cons(h, t) => p(h) || t.exists(p)
+    case _ => false
+  }
+
+  final def forAll(p: A => Boolean): Boolean = !this.exists(a => !p(a))
+
 }
 
 
@@ -290,9 +311,8 @@ object List {
 
   // needed for chapter 7
   final def take[A](as: List[A])(n: Int): List[A] = as match {
-    case Nil => Nil
-    case Cons(h, t) if (n < 1) => Nil
     case Cons(h, t) if (n > 0) => Cons(h, take(t)(n - 1))
+    case _ => Nil
   }
 
   //    @tailrec
@@ -349,8 +369,6 @@ object List {
     case None => Nil
   }
 */
-
-  //  def unfold[A](h:Int=>Int)(size:Int):List[A] = unfold[A,Int](0)(???)
 
 
   def modifyFun[A, B](f: A => B)(abLst: List[(A, B)]): A => B = a => {
@@ -622,6 +640,9 @@ object nith_Chapter_03 {
     log("integers(0)(0)              = " + myString(integers(0)(0)))
     log("integers(42)(0)             = " + myString(integers(42)(0)))
     log("integers(0)(42)             = " + myString(integers(0)(42)))
+    logg("hunList.takeWhile(n => n<7)")(myString(hunList.takeWhile(n => n<7)))
+    logg("hunList.takeWhile(n => (n%3)<2)")(myString(hunList.takeWhile(n => (n%3)<2)))
+    logg("hunList.takeOnly(n => (n%3)<2)")(myString(hunList.takeOnly(n => (n%3)<2)))
 
     println("\n*** Sorting ***")
     log("merge(List(0))(List(1))(n=>m=>n<m) = " + myString(merge[Int](List(0))(List(1))(intSmaller)))
