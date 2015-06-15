@@ -13,7 +13,7 @@ scalacOptions     ++= Seq(
       "-Ywarn-value-discard"
     )
 
-mainClass in (Compile,run) := Some("nith_Chapter_08")
+mainClass in (Compile,run) := Some("fp_nith.nith_Chapter_09")
 
 fork := true
 

@@ -1,3 +1,5 @@
+package fp_nith
+
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{ThreadFactory, ExecutorService, Executors}
 import util._

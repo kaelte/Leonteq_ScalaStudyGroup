@@ -1,3 +1,5 @@
+package fp_nith
+
 import scala.annotation.tailrec
 import util.log
 import Ch04_Option.{None, Option, Some}
