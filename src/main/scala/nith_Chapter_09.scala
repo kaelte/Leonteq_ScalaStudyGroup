@@ -1,5 +1,6 @@
 package fp_nith
 import util._
+import scala.annotation.tailrec
 
 object Ch9 {
 
@@ -13,9 +14,24 @@ object Ch9 {
 
     def succeed[A](a: A): Parser[A] = string("") map (_ => a)
 
-    def or[A,B >: A](p1: Parser[A])(p2: Parser[B]): Parser[A]
+    def or[A,B >: A](p1: Parser[A])(p2: Parser[B]): Parser[B]
 
-    def many[A](p: Parser[A]): Parser[List[A]]
+    // 9.3 Hard: Before continuing, see if you can define many in terms of or, map2, and succeed.
+/*
+    def many[A](p: Parser[A]): Parser[List[A]] =  {
+      val nilSuc:Parser[List[A]] = succeed[List[A]](List.Nil)
+      val pSingleton: Parser[List[A]] = p.map2[List[A],List[A]](nilSuc)(a => as => List.Cons(a,as))
+      def go(asp: Parser[List[A]]): Parser[List[A]] = pSingleton.or(go(p.map2[List[A],List[A]](asp)(a => as => List.Cons(a,as))))
+      go(nilSuc)
+    }
+     */
+
+    def many[A](p: Parser[A]): Parser[List[A]] =  {
+      val nilSuc:Parser[List[A]] = succeed[List[A]](List.Nil)
+      nilSuc.or(p.map2[List[A],List[A]](many[A](p))(a => as => List.Cons[A](a,as)))
+    }
+
+    //   def many[A](p: Parser[A]): Parser[List[A]] =  p.or(p.map2[List[A],List[A]](many[A](p))(a => as => List.Cons(a,as)))
 
     def map[A,B](a: Parser[A])(f: A => B): Parser[B]
 
@@ -26,8 +42,8 @@ object Ch9 {
     // 9.1 Using product, implement the now-familiar combinator map2 and then use this to implement many1 in terms of
     // many. Note that we could have chosen to make map2 primitive and defined product in terms of map2 as we’ve done
     // in previous chapters. The choice is up to you.
-    def map2[A,B,C](p1: Parser[A])(p2: Parser[B])(f: (A, B) => C): Parser[C] =
-      product[A,B](p1)(p2).map(x => f(x._1,x._2))
+    def map2[A,B,C](p1: Parser[A])(p2: Parser[B])(f: A => B => C): Parser[C] =
+      product[A,B](p1)(p2).map[C]( x => f(x._1)(x._2))
 
     def many1[A](p: Parser[A]): Parser[List[A]] = p.product[List[A]](many[A](p)).map[List[A]](_._2)
 
@@ -44,7 +60,7 @@ object Ch9 {
       def many1[B >: A]: Parser[List[B]] = self.many1(p)
 
       def map[B](f: A => B): Parser[B] = self.map(p)(f)
-      def map2[B,C](p2: Parser[B])(f: (A, B) => C): Parser[C] = self.map2[A,B,C](p)(p2)(f)
+      def map2[B,C](p2: Parser[B])(f: A => B => C): Parser[C] = self.map2[A,B,C](p)(p2)(f)
 
       def product[B](p2: Parser[B]): Parser[(A,B)] = self.product[A,B](p)(p2)
       def **[B](p2: Parser[B]): Parser[(A,B)] = product[B](p2)
