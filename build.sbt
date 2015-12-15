@@ -1,5 +1,3 @@
-seq(com.github.retronym.SbtOneJar.oneJarSettings: _*)
-
 scalacOptions     ++= Seq(
       "-deprecation",
       "-encoding", "UTF-8",
