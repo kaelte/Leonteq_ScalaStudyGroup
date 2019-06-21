@@ -15,11 +15,10 @@ lazy val welcomeMessage = taskKey[Unit]("An example task")
 
 lazy val commonSettings = Seq(
   welcomeMessage := { println("!!! Welcome to Leonteq Study Group !!!") },
-  cleanKeepFiles <+= target { target => target },
   fork := true,
   mainClass in (Compile,run) := Some("fp_nith.nith_Chapter_02"),
   name := "Leonteq Study Group",
-  scalaVersion := "2.12.1",
+  scalaVersion := "2.11.8",
   version := "0.2.0"
 )
 
