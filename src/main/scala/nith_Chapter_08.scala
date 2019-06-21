@@ -258,29 +258,27 @@ object Ch08 {
 
     final def forAll[A](g: Int => Gen[A])(P: A => Boolean): Prop = Prop {
       (max, numTestCases, rng) =>
-        val testCaseIndizes: List[Int] = List.integers(0)(numTestCases.min(max) - 1)
+        val testCaseIndices: List[Int] = List.integers(0)(numTestCases.min(max) - 1)
         val casesPerSize: Int = (numTestCases + max) / (max.abs + 1)
         val propSequence: Int => Phase2.Prop = i => Phase2.forAll(g(i))(P)
-        val propPhase2List: List[Phase2.Prop] = List.map[Int, Phase2.Prop](testCaseIndizes)(propSequence)
+        val propPhase2List: List[Phase2.Prop] = List.map[Int, Phase2.Prop](testCaseIndices)(propSequence)
         val propPhase3List: List[Prop] = List.map[Phase2.Prop, Phase3.Prop](propPhase2List)(p => Prop {
           (_, _, rng) => p.run(casesPerSize, rng)
         })
         val prop: Prop = List.foldLeft[Prop, Prop](propPhase3List, alwaysPassed)(prop1 => prop2 => prop2.&&(prop1))
         prop.run(max, numTestCases, rng)
     }
-
     final def forAllAll[A](g: Int => Gen[A])(P: A => Prop): Prop = Prop {
+          /// P should be of "type" A => Ch08.Phase3.forAll[B]
       (max, numTestCases, rng) => {
-        val testCaseIndizes: List[Int] = List.integers(0)(numTestCases.min(max) - 1)
+        val testCaseIndices: List[Int] = List.integers(0)(numTestCases.min(max) - 1)
         val casesPerSize: Int = (numTestCases + max) / (max.abs + 1)
         val propSequence: Int => Phase2.Prop = i => Phase2.forAll(g(i))(a => P(a).toBool(max)(numTestCases)(rng))
-        val propPhase2List: List[Phase2.Prop] = List.map[Int, Phase2.Prop](testCaseIndizes)(propSequence)
+        val propPhase2List: List[Phase2.Prop] = List.map[Int, Phase2.Prop](testCaseIndices)(propSequence)
         val propPhase3List: List[Prop] = List.map[Phase2.Prop, Phase3.Prop](propPhase2List)(p => Prop {
           (_, _, rng) => p.run(casesPerSize, rng)
         })
-        val prop: Prop = List.foldLeft[Prop, Prop](propPhase3List, alwaysPassed)(prop1 => prop2 => prop2.&&(prop1))
-        //        logg("...Phase3.forAllAll: max=" + max + "\tnumTestCases=" + numTestCases + "\tcasesPerSize=" + casesPerSize
-        //          + "\tpropPhase2List.size=" + List.length(propPhase2List) + "\tpropPhase3List.size")(List.length(propPhase3List))
+        val prop: Prop = List.foldLeft[Prop, Prop](as=propPhase3List, z=alwaysPassed)(prop1 => prop2 => prop2.&&(prop1))
         prop.run(max, numTestCases, rng)
       }
     }
@@ -441,10 +439,14 @@ object nith_Chapter_08 extends App {
       + ":\tList.isSorted(" + List.myString(Cons(n, l)) + ")=" + List.isSorted(Cons(n, l)) + "\tresult")(result)
     result
   }
-  logg("run(forAllAll[Int](_=>intGen)(n=> forAll[List[Int]](intListGen)(List.isSorted(Cons(n, l)) == (n <= List.min(l) && List.isSorted(l)))),2,4)")(run(forAllAll[Int](_ => intGen)(n => Ch08.Phase3.forAll[List[Int]](intListGen)(loggedTest1(true)(n))), 2, 6))
+  logg("run(forAllAll[Int](_=>intGen)(n=> forAll[List[Int]](intListGen)(List.isSorted(Cons(n, l)) == (n <= List.min(l) && List.isSorted(l)))),2,4)")(
+    run(forAllAll[Int](_ => intGen)(n => Ch08.Phase3.forAll[List[Int]](intListGen)(loggedTest1(true)(n)))
+      , 2, 6))
 
   println("* Many cases without logging *")
-  logg("run(forAllAll[Int](_=>intGen)(n=> forAll[List[Int]](intListGen)(List.isSorted(Cons(n, l)) == (n <= List.min(l) && List.isSorted(l)))),2,4)")(run(forAllAll[Int](_ => intGen)(n => Ch08.Phase3.forAll[List[Int]](intListGen)(loggedTest1(false)(n))), 10, 100))
+  logg("run(forAllAll[Int](_=>intGen)(n=> forAll[List[Int]](intListGen)(List.isSorted(Cons(n, l)) == (n <= List.min(l) && List.isSorted(l)))),2,4)")(
+    run(forAllAll[Int](_ => intGen)(n => Ch08.Phase3.forAll[List[Int]](intListGen)(loggedTest1(false)(n)))
+      , 10, 100))
 
   println("* Different test for isSorted using 2 forAllAll *")
   val loggedTest2: Boolean => Int => Int => List[Int] => Boolean = debug => n => m => l => {
@@ -508,8 +510,12 @@ object nith_Chapter_08 extends App {
       + "\tresult")(result)
     result
   }
-  logg("run(forAllAll[Int=>Boolean](intPredGen)(p1 => forAll[List[Int]](intListGen)(testTakeOnly(true)(p1))),4,8)")(run(forAllAll[Int => Boolean](intPredEvenGen)(p => Ch08.Phase3.forAll[List[Int]](intListGen)(testTakeOnly(true)(p))), 4, 8))
-  logg("run(forAllAll[Int=>Boolean](intPredGen)(p1 => forAll[List[Int]](intListGen)(testTakeOnly(false)(p1))),32,64)")(run(forAllAll[Int => Boolean](intPredEvenGen)(p => Ch08.Phase3.forAll[List[Int]](intListGen)(testTakeOnly(false)(p))), 32, 64))
+  logg("run(forAllAll[Int=>Boolean](intPredGen)(p1 => forAll[List[Int]](intListGen)(testTakeOnly(true)(p1))),4,8)")(
+    run(forAllAll[Int => Boolean](intPredEvenGen)(p => Ch08.Phase3.forAll[List[Int]](intListGen)(testTakeOnly(true)(p))), 4, 8)
+  )
+  logg("run(forAllAll[Int=>Boolean](intPredGen)(p1 => forAll[List[Int]](intListGen)(testTakeOnly(false)(p1))),32,64)")(
+    run(forAllAll[Int => Boolean](intPredEvenGen)(p => Ch08.Phase3.forAll[List[Int]](intListGen)(testTakeOnly(false)(p))), 32, 64)
+  )
 
   logg("run(forAllAll[Int => Boolean](intPredEvenGen)(p1 => forAll[List[Int]](intListGen)(ints => ints.dropWhile(p1).takeWhile(p1)==Nil)),32,64)")(run(forAllAll[Int => Boolean](intPredEvenGen)(p => Ch08.Phase3.forAll[List[Int]](intListGen)(ints => ints.dropWhile(p).takeWhile(p) == Nil)), 32, 64))
   logg("run(forAllAll[Int => Boolean](intPredEvenGen)(p1 => forAll[List[Int]](intListGen)(ints => ints.takeWhile(p1).dropWhile(p1)==Nil)),32,64)")(run(forAllAll[Int => Boolean](intPredEvenGen)(p => Ch08.Phase3.forAll[List[Int]](intListGen)(ints => ints.takeWhile(p).dropWhile(p) == Nil)), 32, 64))

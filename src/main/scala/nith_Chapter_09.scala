@@ -1,6 +1,7 @@
 package fp_nith
+import List.Cons
 import util._
-import scala.annotation.tailrec
+//import scala.annotation.tailrec
 
 object Ch9 {
 
@@ -44,8 +45,7 @@ object Ch9 {
     // in previous chapters. The choice is up to you.
     def map2[A,B,C](p1: Parser[A])(p2: Parser[B])(f: A => B => C): Parser[C] =
       product[A,B](p1)(p2).map[C]( x => f(x._1)(x._2))
-
-    def many1[A](p: Parser[A]): Parser[List[A]] = p.product[List[A]](many[A](p)).map[List[A]](_._2)
+    def many1[A](p: Parser[A]): Parser[List[A]] = p.product[List[A]](many[A](p)).map[List[A]](x => Cons(x._1,x._2))
 
 
     implicit def operators[A](p: Parser[A]): ParserOps[A] = ParserOps[A](p)
@@ -74,16 +74,26 @@ object Ch9 {
       import Ch08.Phase3.{forAll,forAllAll,Prop}
 
       final def equal[A](p1: Parser[A])(p2: Parser[A])(in: Int => Gen[String]): Prop =
-        forAll(in)(s => run(p1)(s) == run(p2)(s))
+        forAll[String](in)(s => run(p1)(s) == run(p2)(s))
 
       final def mapLaw[A](p: Parser[A])(in: Int => Gen[String]): Prop = equal(p)(p.map(a => a))(in)
 
       //9.2 Hard: Try coming up with laws to specify the behavior of product.
-      final def prodAssociative[A](p1: Parser[A])(p2: Parser[A])(p3: Parser[A])(in: Int => Gen[String]): Prop =
-        equal[(A,(A,A))](p1.**(p2.**(p3)))(p1.**(p2).**(p3).map[(A,(A,A))]( x => (x._1._1,(x._1._2,x._2))))(in)
+      final def prodAssociative[A](p1: Parser[A])(p2: Parser[A])(p3: Parser[A])(in: Int => Gen[String]): Prop = {
+        val rightLeft: Parser[(A, (A, A))] = p1.**(p2.**(p3))
+        val leftRight: Parser[(A, (A, A))] = p1.**(p2).**(p3).map(x => (x._1._1, (x._1._2, x._2)))
+        equal[(A, (A, A))](rightLeft)(leftRight)(in)
+      }
 
-      final def prodNeutralElement[A](p: Parser[A])(aGen: Int => Gen[A])(in: Int => Gen[String]): Prop =
-        forAllAll[A](aGen)(a => equal[A](p)(p.**(succeed[A](a)).map[A](x => x._1))(in))
+      final def prodNeutralElementRight[A,B](p: Parser[A])(in1: Int => Gen[B])(in2: Int => Gen[String]): Prop = {
+        val pTimesSucceed: B=>Parser[A] = b=>p.**(succeed[B](b)).map[A](x => x._1)
+        forAllAll[B](in1)(b => equal[A](p)(pTimesSucceed(b))(in2))
+      }
+
+      final def prodNeutralElementLeft[A,B](p: Parser[A])(in1: Int => Gen[B])(in2: Int => Gen[String]): Prop = {
+        val succeedTimesP: B=>Parser[A] = b=>succeed[B](b).**(p).map[A](x => x._2)
+        forAllAll[B](in1)(b => equal[A](p)(succeedTimesP(b))(in2))
+      }
 
       final def prodCommutative[A](p1: Parser[A])(p2: Parser[A])(in: Int => Gen[String]): Prop =
         equal[(A,A)](p1.**(p2))(p1.**(p2))(in)
