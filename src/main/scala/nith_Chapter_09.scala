@@ -1,6 +1,8 @@
 package fp_nith
 import List.Cons
 import util._
+
+import scala.util.matching.Regex
 //import scala.annotation.tailrec
 
 object Ch9 {
@@ -9,52 +11,67 @@ object Ch9 {
 
     def run[A](p: Parser[A])(input: String): Either[ParseError,A]
 
+    implicit def operators[A](p: Parser[A]): ParserOps[A] = ParserOps[A](p)
+    implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]): ParserOps[String] = ParserOps(f(a))
+
+    /// primitive combinators
     def string(s: String): Parser[String]
+    implicit def regex(r: Regex): Parser[String]
+    def slice[A](p: Parser[A]): Parser[String]
+    def succeed[A](a: A): Parser[A] // could be implemented using map but we want it to be primitive = string("") map (_ => a)
+    def or[A,B >: A](p1: Parser[A])(p2: => Parser[B]): Parser[B]
+    def flatMap[A,B](p: Parser[A])(f: A => Parser[B]): Parser[B]
+
+
+
 
     def char(c: Char): Parser[Char] = string(c.toString) map (_.charAt(0))
 
-    def succeed[A](a: A): Parser[A] = string("") map (_ => a)
 
-    def or[A,B >: A](p1: Parser[A])(p2: Parser[B]): Parser[B]
 
-    // 9.3 Hard: Before continuing, see if you can define many in terms of or, map2, and succeed.
-/*
-    def many[A](p: Parser[A]): Parser[List[A]] =  {
-      val nilSuc:Parser[List[A]] = succeed[List[A]](List.Nil)
-      val pSingleton: Parser[List[A]] = p.map2[List[A],List[A]](nilSuc)(a => as => List.Cons(a,as))
-      def go(asp: Parser[List[A]]): Parser[List[A]] = pSingleton.or(go(p.map2[List[A],List[A]](asp)(a => as => List.Cons(a,as))))
-      go(nilSuc)
-    }
-     */
-
-    def many[A](p: Parser[A]): Parser[List[A]] =  {
-      val nilSuc:Parser[List[A]] = succeed[List[A]](List.Nil)
-      nilSuc.or(p.map2[List[A],List[A]](many[A](p))(a => as => List.Cons[A](a,as)))
-    }
-
-    //   def many[A](p: Parser[A]): Parser[List[A]] =  p.or(p.map2[List[A],List[A]](many[A](p))(a => as => List.Cons(a,as)))
-
-    def map[A,B](a: Parser[A])(f: A => B): Parser[B]
-
-    def slice[A](p: Parser[A]): Parser[String]
-
-    def product[A,B](p1: Parser[A])(p2: Parser[B]): Parser[(A,B)]
 
     // 9.1 Using product, implement the now-familiar combinator map2 and then use this to implement many1 in terms of
     // many. Note that we could have chosen to make map2 primitive and defined product in terms of map2 as we’ve done
     // in previous chapters. The choice is up to you.
-    def map2[A,B,C](p1: Parser[A])(p2: Parser[B])(f: A => B => C): Parser[C] =
+    def map2[A,B,C](p1: Parser[A])(p2: => Parser[B])(f: A => B => C): Parser[C] =
       product[A,B](p1)(p2).map[C]( x => f(x._1)(x._2))
     def many1[A](p: Parser[A]): Parser[List[A]] = p.product[List[A]](many[A](p)).map[List[A]](x => Cons(x._1,x._2))
 
 
-    implicit def operators[A](p: Parser[A]): ParserOps[A] = ParserOps[A](p)
 
-    implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]): ParserOps[String] = ParserOps(f(a))
+    // 9.3 Hard: Before continuing, see if you can define many in terms of or, map2, and succeed.
+    def many[A](p: Parser[A]): Parser[List[A]] =  {
+      val nilSuc:Parser[List[A]] = succeed[List[A]](List.Nil)
+      nilSuc.or(p.map2[List[A],List[A]](p2 = many[A](p))(a => as => List.Cons[A](a,as)))
+    }
+
+    // 9.4
+    def listOfN[A](n: Int,p: Parser[A]): Parser[List[A]] = {
+      def go[A](n: Int, p: Parser[A]): Parser[List[A]] = {
+        if (0 == n) succeed[List[A]](List())
+        else p.map2[List[A],List[A]](go[A](n-1,p))(a => as => Cons[A](a,as))
+      }
+      go(n,p)
+    }
+
+    // 9.6
+    def thatMany[A](p: Parser[A]) = regex("[0-9]".r).map[Int](_.toInt).flatMap[List[A]](listOfN[A](_,p))
+
+    // 9.7
+    def product[A,B](p1: Parser[A])(p2: => Parser[B]): Parser[(A,B)] = p1.flatMap[(A,B)](a => p2.map[(A,B)]((a,_)))
+    def map22[A,B,C](p1: Parser[A])(p2: => Parser[B])(f: A => B => C): Parser[C] =
+      p1.flatMap[C](a => p2.map[(A,B)]((a,_)).map[C](ab => f(ab._1)(ab._2)))
+
+    // 9.8
+    def map[A,B](p: Parser[A])(f: A => B): Parser[B] = p.flatMap[B](a => succeed[B](f(a)))
+
+
 
     case class ParserOps[A](p: Parser[A]) {
       def or[B >: A](p2: => Parser[B]): Parser[B] = self.or[A,B](p)(p2)
       def |[B >: A](p2: Parser[B]): Parser[B] = or(p2)
+
+      def flatMap[B](f: A => Parser[B]): Parser[B] = self.flatMap(p)(f)
 
       def many[B >: A]: Parser[List[B]] = self.many(p)
       def many1[B >: A]: Parser[List[B]] = self.many1(p)
@@ -116,4 +133,3 @@ object nith_Chapter_09 extends App {
   println()
   println("*** Not finished yet ***")
 }
-
